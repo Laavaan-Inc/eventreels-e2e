@@ -79,3 +79,30 @@ test.describe("Session persistence", () => {
     await ctx.close();
   });
 });
+
+test.describe("Login — OTP retry", () => {
+  test("wrong OTP followed by correct OTP authenticates successfully", async ({ page }) => {
+    const auth = new AuthPage(page);
+    await auth.navigate();
+    await auth.fillPhone("+11111111111");
+    await auth.clickSendCode();
+    await auth.expectOtpInput();
+
+    // First attempt — wrong code
+    await auth.fillOtp("999999");
+    await auth.expectErrorMessage();
+
+    // Wait for the OTP field to be interactable again (some apps briefly disable it)
+    const otpInput = page.locator("#otp");
+    await otpInput.waitFor({ state: "visible", timeout: 5_000 });
+    await page.waitForTimeout(500);
+
+    // Second attempt — correct bypass code; clear field first
+    await otpInput.clear();
+    await auth.fillOtp("000000");
+
+    // Wait for navigation away from /auth
+    await page.waitForURL((url) => !url.pathname.includes("/auth"), { timeout: 15_000 });
+    expect(page.url()).not.toContain("/auth");
+  });
+});

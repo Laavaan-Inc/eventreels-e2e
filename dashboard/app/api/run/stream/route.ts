@@ -11,7 +11,9 @@ export async function GET(req: NextRequest) {
   const spec     = searchParams.get("spec")  ?? undefined;
   const testName = searchParams.get("test")  ?? undefined;
 
+  const headed = searchParams.get("headed") === "true";
   const args = ["playwright", "test", "--reporter=line"];
+  if (headed)   args.push("--headed");
   if (spec)     args.push(spec);
   if (testName) args.push("--grep", testName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
 
