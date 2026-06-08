@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
 
-const E2E_ROOT = path.resolve(__dirname, "../../../../../../");
+const E2E_ROOT = path.resolve(process.cwd(), "..");
 
 export const dynamic = "force-dynamic";
 

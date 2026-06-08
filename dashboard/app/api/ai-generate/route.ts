@@ -3,7 +3,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import fs from "fs";
 import path from "path";
 
-const E2E_ROOT = path.resolve(__dirname, "../../../../../../");
+const E2E_ROOT = path.resolve(process.cwd(), "..");
 
 export const dynamic = "force-dynamic";
 

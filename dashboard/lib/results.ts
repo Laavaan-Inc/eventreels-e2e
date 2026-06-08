@@ -2,7 +2,7 @@ import fs from "fs";
 import path from "path";
 import { TestCase, TestResult, DashboardData, AreaStats } from "./types";
 
-const RESULTS_FILE = path.resolve(__dirname, "../../playwright-report/results.json");
+const RESULTS_FILE = path.resolve(process.cwd(), "../playwright-report/results.json");
 
 const SPEC_TO_AREA: Record<string, string> = {
   "auth.spec.ts":           "Auth",
