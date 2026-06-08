@@ -7,3 +7,4 @@ test-results/
 dashboard/.next/
 dashboard/node_modules/
 dashboard/tsconfig.tsbuildinfo
+dashboard/.env.local

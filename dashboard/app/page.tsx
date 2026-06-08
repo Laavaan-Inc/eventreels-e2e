@@ -4,15 +4,17 @@ import { useEffect, useState, useCallback } from "react";
 import Sidebar from "@/components/Sidebar";
 import TestTable from "@/components/TestTable";
 import RunModal from "@/components/RunModal";
+import AddTestModal from "@/components/AddTestModal";
 import { DashboardData } from "@/lib/types";
 
 export default function DashboardPage() {
   const [data,      setData]      = useState<DashboardData | null>(null);
   const [area,      setArea]      = useState<string | null>(null);
   const [search,    setSearch]    = useState("");
-  const [areaRun,   setAreaRun]   = useState<string | null>(null);
-  const [allRun,    setAllRun]    = useState(false);
-  const [lastFetch, setLastFetch] = useState<Date | null>(null);
+  const [areaRun,    setAreaRun]    = useState<string | null>(null);
+  const [allRun,     setAllRun]     = useState(false);
+  const [addTestOpen, setAddTestOpen] = useState(false);
+  const [lastFetch,  setLastFetch]  = useState<Date | null>(null);
 
   const fetchData = useCallback(() => {
     fetch("/api/tests")
@@ -57,7 +59,7 @@ export default function DashboardPage() {
             )}
           </div>
 
-          {/* search */}
+          {/* search + actions */}
           <div className="ml-auto flex items-center gap-3">
             <input
               type="search"
@@ -66,6 +68,12 @@ export default function DashboardPage() {
               onChange={(e) => setSearch(e.target.value)}
               className="w-56 bg-gray-900 border border-gray-700 rounded-lg px-3 py-1.5 text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:border-indigo-500"
             />
+            <button
+              onClick={() => setAddTestOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-purple-700 hover:bg-purple-600 text-xs text-white font-medium transition-colors"
+            >
+              ✨ Add with AI
+            </button>
             <button
               onClick={() => setAllRun(true)}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-xs text-white font-medium transition-colors"
@@ -124,6 +132,13 @@ export default function DashboardPage() {
         <RunModal
           label="Run all tests"
           onClose={() => { setAllRun(false); fetchData(); }}
+        />
+      )}
+
+      {addTestOpen && (
+        <AddTestModal
+          onClose={() => setAddTestOpen(false)}
+          onAdded={fetchData}
         />
       )}
     </div>
