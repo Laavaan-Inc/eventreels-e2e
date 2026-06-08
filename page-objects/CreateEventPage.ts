@@ -16,7 +16,7 @@ export class CreateEventPage {
       // @ts-ignore
       const _D = Date;
       class SD extends _D {
-        constructor(...a: any[]) { super(...(a.length === 0 ? [_now() + SHIFT] : a)); }
+        constructor(...a: any[]) { super(...(a.length === 0 ? [_now() + SHIFT] : a) as []); }
         static now() { return _now() + SHIFT; }
       }
       SD.prototype = _D.prototype;

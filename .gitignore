@@ -4,3 +4,6 @@ test-results/
 .auth/
 .env
 *.log
+dashboard/.next/
+dashboard/node_modules/
+dashboard/tsconfig.tsbuildinfo
