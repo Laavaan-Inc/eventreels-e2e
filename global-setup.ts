@@ -58,7 +58,9 @@ export default async function globalSetup(_config: FullConfig) {
     }
   }
 
-  // ── 4. Seed RSVPs on TBD event ────────────────────────────────────────────
+  // ── 4. Seed RSVPs on TBD event (login each secondary user once, reuse token) ─
+  const secondaryTokens: Record<string, string> = {};
+
   if (seeded.tbdEventId) {
     for (const [phone, status, label] of [
       [TEST_PHONE_2, "going",  "Interested"],
@@ -66,7 +68,9 @@ export default async function globalSetup(_config: FullConfig) {
       [TEST_PHONE_4, "cancel", "Not going"],
     ] as const) {
       try {
+        await new Promise(r => setTimeout(r, 1_200)); // avoid 429 between logins
         const { token: t } = await loginUser(phone);
+        secondaryTokens[phone] = t;
         await rsvpDateUndecided(t, seeded.tbdEventId, status);
         console.log(`[setup] ${phone} → ${label}`);
       } catch (err: any) {
@@ -75,10 +79,15 @@ export default async function globalSetup(_config: FullConfig) {
     }
   }
 
-  // ── 5. Seed registration on fixed event (for RSVP spec) ───────────────────
+  // ── 5. Seed registration on fixed event — reuse token from step 4 ──────────
   if (seeded.fixedEventId) {
     try {
-      const { token: t2 } = await loginUser(TEST_PHONE_2);
+      // Reuse TEST_PHONE_2 token if already obtained, else login fresh
+      const t2 = secondaryTokens[TEST_PHONE_2] ?? (await (async () => {
+        await new Promise(r => setTimeout(r, 1_200));
+        const { token: t } = await loginUser(TEST_PHONE_2);
+        return t;
+      })());
       await registerForEvent(t2, seeded.fixedEventId);
       console.log("[setup] User 2 registered for fixed event");
     } catch (err: any) {
@@ -90,9 +99,10 @@ export default async function globalSetup(_config: FullConfig) {
   fs.writeFileSync(SEEDED_EVENTS_PATH, JSON.stringify(seeded, null, 2));
   console.log("[setup] Seeded events →", SEEDED_EVENTS_PATH);
 
-  // ── 7. Write Playwright storageState ──────────────────────────────────────
-  // Re-auth to get a fresh token pair
-  const { token: finalToken, user: finalUser } = await loginUser(TEST_PHONE, TEST_OTP);
+  // ── 7. Write Playwright storageState (reuse organizer token from step 1) ──
+  // Use the token already obtained — avoid an extra login call
+  const finalToken = token;
+  const finalUser  = user;
   const refreshToken = ""; // refresh token not returned separately
 
   const storageState = {

@@ -8,7 +8,7 @@
  *  4. Already-checked-in guest shows correct status
  */
 
-import { test, expect } from "@playwright/test";
+import { test, expect } from "../fixtures/traced-test";
 import { CheckInPage }    from "../page-objects/CheckInPage";
 import { getSeededEvents } from "../utils/api-helpers";
 

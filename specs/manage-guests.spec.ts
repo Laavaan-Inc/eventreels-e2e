@@ -10,7 +10,7 @@
  *  6. Guests list is searchable / filterable (if feature exists)
  */
 
-import { test, expect } from "@playwright/test";
+import { test, expect } from "../fixtures/traced-test";
 import { ManageEventPage } from "../page-objects/ManageEventPage";
 import { getSeededEvents, loginUser, registerForEvent } from "../utils/api-helpers";
 

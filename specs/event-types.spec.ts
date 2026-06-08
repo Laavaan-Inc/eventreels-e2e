@@ -5,7 +5,7 @@
  * The intercepted request body is asserted to carry the correct payload.
  */
 
-import { test, expect } from "@playwright/test";
+import { test, expect } from "../fixtures/traced-test";
 import { CreateEventPage } from "../page-objects/CreateEventPage";
 
 async function setup(page: any, fn: (c: CreateEventPage) => Promise<void>) {

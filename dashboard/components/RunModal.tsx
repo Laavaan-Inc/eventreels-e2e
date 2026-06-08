@@ -52,18 +52,21 @@ export default function RunModal({ spec, test: testName, label, onClose }: Props
     };
     es.onerror = () => { setDone(true); es.close(); stopPolling(); };
 
-    // Poll for live screenshot every 1.2s while headed
-    if (headed) {
-      pollRef.current = setInterval(async () => {
-        try {
-          const res = await fetch("/api/screenshot");
-          if (res.ok) {
-            const { image } = await res.json();
-            if (image) setScreenshot(image);
+    // Poll for live screenshot every 800ms while running
+    // (works headed OR headless — Playwright writes the file directly)
+    let lastUpdatedAt = 0;
+    pollRef.current = setInterval(async () => {
+      try {
+        const res = await fetch("/api/screenshot");
+        if (res.ok) {
+          const { image, updatedAt } = await res.json();
+          if (image && updatedAt !== lastUpdatedAt) {
+            lastUpdatedAt = updatedAt;
+            setScreenshot(image);
           }
-        } catch {}
-      }, 1_200);
-    }
+        }
+      } catch {}
+    }, 800);
   }, [spec, testName, headed, stopPolling]);
 
   useEffect(() => {

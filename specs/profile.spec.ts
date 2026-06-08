@@ -2,7 +2,7 @@
  * profile.spec.ts — Profile page tab navigation
  */
 
-import { test } from "@playwright/test";
+import { test } from "../fixtures/traced-test";
 import { ProfilePage }  from "../page-objects/ProfilePage";
 import { getSeededEvents } from "../utils/api-helpers";
 

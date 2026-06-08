@@ -12,7 +12,7 @@
  * organizer's manage view reflects the correct state.
  */
 
-import { test, expect } from "@playwright/test";
+import { test, expect } from "../fixtures/traced-test";
 import { ManageEventPage }     from "../page-objects/ManageEventPage";
 import { EventPage }           from "../page-objects/EventPage";
 import { getSeededEvents, loginUser, registerForEvent, rsvpDateUndecided } from "../utils/api-helpers";

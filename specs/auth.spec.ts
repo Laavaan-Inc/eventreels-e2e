@@ -5,7 +5,7 @@
  * Session-persistence tests use test.use({ storageState }) inline.
  */
 
-import { test, expect } from "@playwright/test";
+import { test, expect } from "../fixtures/traced-test";
 import { AuthPage } from "../page-objects/AuthPage";
 
 test.describe("Login — valid OTP", () => {

@@ -10,7 +10,7 @@
  *  F. Guest RSVP labels correctly colour-coded (Interested / Maybe / Not going)
  */
 
-import { test, expect } from "@playwright/test";
+import { test, expect } from "../fixtures/traced-test";
 import { EventPage }       from "../page-objects/EventPage";
 import { ManageEventPage } from "../page-objects/ManageEventPage";
 import { getSeededEvents }  from "../utils/api-helpers";

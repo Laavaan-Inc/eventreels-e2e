@@ -2,20 +2,32 @@
 
 import { API_BASE, AUTH_STATE_PATH, SEEDED_EVENTS_PATH } from "../config/test-data";
 
-async function apiFetch(method: string, path: string, body?: object, token?: string): Promise<any> {
-  const res = await fetch(`${API_BASE}${path}`, {
-    method,
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: token } : {}),
-    },
-    ...(body ? { body: JSON.stringify(body) } : {}),
-  });
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`${method} ${path} → ${res.status}: ${text}`);
+const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
+
+async function apiFetch(method: string, path: string, body?: object, token?: string, retry = 3): Promise<any> {
+  for (let attempt = 1; attempt <= retry; attempt++) {
+    const res = await fetch(`${API_BASE}${path}`, {
+      method,
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: token } : {}),
+      },
+      ...(body ? { body: JSON.stringify(body) } : {}),
+    });
+
+    if (res.status === 429) {
+      if (attempt < retry) {
+        await sleep(2_000 * attempt); // 2s, 4s backoff
+        continue;
+      }
+    }
+
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`${method} ${path} → ${res.status}: ${text}`);
+    }
+    return res.json();
   }
-  return res.json();
 }
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
