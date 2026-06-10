@@ -15,6 +15,8 @@ export default defineConfig({
 
   globalSetup: "./global-setup.ts",
 
+  timeout: 90_000,
+
   use: {
     baseURL: process.env.APP_BASE ?? "http://localhost:3000",
     trace: "retain-on-failure",
@@ -40,11 +42,14 @@ export default defineConfig({
     },
   ],
 
-  // Point at the running frontend — reuseExistingServer means we don't spawn a second one
-  webServer: {
-    command: "echo 'Expecting frontend already running on :3000'",
-    url: process.env.APP_BASE ?? "http://localhost:3000",
-    reuseExistingServer: true,
-    timeout: 10_000,
-  },
+  // Only spin up / check a local server when APP_BASE points at localhost.
+  // For remote environments (dev.eventreels.com, staging, etc.) skip this block.
+  ...((!process.env.APP_BASE || process.env.APP_BASE.includes("localhost")) ? {
+    webServer: {
+      command: "echo 'Expecting frontend already running on :3000'",
+      url: process.env.APP_BASE ?? "http://localhost:3000",
+      reuseExistingServer: true,
+      timeout: 10_000,
+    },
+  } : {}),
 });

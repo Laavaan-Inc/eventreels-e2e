@@ -14,6 +14,12 @@ export const TEST_PHONE_2 = "+12222222222";
 export const TEST_PHONE_3 = "+13333333333";
 export const TEST_PHONE_4 = "+14444444444";
 
+// Dedicated auth-spec bypass phones — each test uses its own to avoid rate limits
+export const AUTH_PHONE_VALID   = "+15555555555"; // valid OTP test
+export const AUTH_PHONE_INVALID = "+16666666666"; // invalid OTP test
+export const AUTH_PHONE_RESEND  = "+17777777777"; // resend timer test
+export const AUTH_PHONE_RETRY   = "+18888888888"; // OTP retry test
+
 export const AUTH_STATE_PATH    = ".auth/user.json";
 export const SEEDED_EVENTS_PATH = ".auth/seeded-events.json";
 

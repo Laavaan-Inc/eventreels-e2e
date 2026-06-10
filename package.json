@@ -5,15 +5,21 @@
   "private": true,
   "scripts": {
     "test": "playwright test",
+    "test:dev": "dotenv -e .env.dev -- playwright test",
+    "test:dev:auth": "dotenv -e .env.dev -- playwright test --project=auth",
+    "test:dev:headed": "dotenv -e .env.dev -- playwright test --headed",
+    "test:local": "dotenv -e .env.local -- playwright test",
     "test:auth": "playwright test --project=auth",
     "test:e2e": "playwright test --project=e2e",
     "test:headed": "playwright test --project=e2e --headed",
     "test:ui": "playwright test --project=e2e --ui",
     "test:report": "playwright show-report",
+    "dashboard": "cd dashboard && npm run dev",
     "setup": "playwright test --project=setup"
   },
   "devDependencies": {
     "@playwright/test": "^1.60.0",
+    "dotenv-cli": "^11.0.0",
     "exceljs": "^4.4.0",
     "googleapis": "^140.0.1",
     "typescript": "^5.9.3"

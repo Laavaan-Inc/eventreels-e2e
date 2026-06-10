@@ -8,13 +8,14 @@ import AddTestModal from "@/components/AddTestModal";
 import { DashboardData } from "@/lib/types";
 
 export default function DashboardPage() {
-  const [data,      setData]      = useState<DashboardData | null>(null);
-  const [area,      setArea]      = useState<string | null>(null);
-  const [search,    setSearch]    = useState("");
-  const [areaRun,    setAreaRun]    = useState<string | null>(null);
-  const [allRun,     setAllRun]     = useState(false);
+  const [data,        setData]        = useState<DashboardData | null>(null);
+  const [area,        setArea]        = useState<string | null>(null);
+  const [search,      setSearch]      = useState("");
+  const [areaRun,     setAreaRun]     = useState<string | null>(null);
+  const [allRun,      setAllRun]      = useState(false);
   const [addTestOpen, setAddTestOpen] = useState(false);
-  const [lastFetch,  setLastFetch]  = useState<Date | null>(null);
+  const [lastFetch,   setLastFetch]   = useState<Date | null>(null);
+  const [env,         setEnv]         = useState<"local" | "dev">("dev");
 
   const fetchData = useCallback(() => {
     fetch("/api/tests")
@@ -68,6 +69,26 @@ export default function DashboardPage() {
               onChange={(e) => setSearch(e.target.value)}
               className="w-56 bg-gray-900 border border-gray-700 rounded-lg px-3 py-1.5 text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:border-indigo-500"
             />
+
+            {/* Environment toggle */}
+            <div className="flex items-center gap-1 bg-gray-900 border border-gray-700 rounded-lg p-0.5">
+              {(["local", "dev"] as const).map((e) => (
+                <button
+                  key={e}
+                  onClick={() => setEnv(e)}
+                  className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
+                    env === e
+                      ? e === "dev"
+                        ? "bg-emerald-600 text-white"
+                        : "bg-gray-700 text-white"
+                      : "text-gray-400 hover:text-gray-200"
+                  }`}
+                >
+                  {e === "dev" ? "dev.eventreels.com" : "localhost"}
+                </button>
+              ))}
+            </div>
+
             <button
               onClick={() => setAddTestOpen(true)}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-purple-700 hover:bg-purple-600 text-xs text-white font-medium transition-colors"
@@ -115,7 +136,9 @@ export default function DashboardPage() {
             tests={data.tests}
             area={area}
             search={search}
+            env={env}
             onRunArea={() => setAreaRun(area)}
+            onRefresh={fetchData}
           />
         </main>
       </div>
@@ -124,6 +147,7 @@ export default function DashboardPage() {
         <RunModal
           spec={data.tests.find((t) => t.area === areaRun)?.spec}
           label={`Run all — ${areaRun}`}
+          env={env}
           onClose={() => { setAreaRun(null); fetchData(); }}
         />
       )}
@@ -131,6 +155,7 @@ export default function DashboardPage() {
       {allRun && (
         <RunModal
           label="Run all tests"
+          env={env}
           onClose={() => { setAllRun(false); fetchData(); }}
         />
       )}
