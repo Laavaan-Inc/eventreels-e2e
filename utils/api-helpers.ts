@@ -94,10 +94,14 @@ export async function createApprovalEvent(token: string, name: string, coverBase
 }
 
 export async function createDateUndecidedEvent(token: string, name: string, coverBase64?: string): Promise<any> {
+  const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000);
+  const dayAfter  = new Date(Date.now() + 48 * 60 * 60 * 1000);
   return apiFetch("POST", "/events/add", {
     eventName: name,
     description: "E2E date-undecided seed event",
     sections: [{ name: "Description", content: "E2E date-undecided seed event" }],
+    startDate: tomorrow.toISOString(),
+    endDate:   dayAfter.toISOString(),
     timezoneOffsetInMin: new Date().getTimezoneOffset(),
     isVirtuel: true, isPrivate: false, capacity: 0,
     approvalRequired: false, isGuestListPublic: true,
