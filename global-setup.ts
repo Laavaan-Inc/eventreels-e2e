@@ -35,10 +35,40 @@ export default async function globalSetup(_config: FullConfig) {
   const skipSeeding = process.env.SKIP_SEEDING === "true";
 
   // ── 1. Get API token (needed for seeding) ────────────────────────────────
-  console.log(`\n[setup] Authenticating organizer via API...`);
-  const { token, user } = await loginUser(TEST_PHONE, TEST_OTP);
-  if (!token) throw new Error("[setup] No access token — check API_BASE and bypass OTP");
-  console.log(`[setup] Authenticated: ${user?.name ?? "?"} (@${user?.username})`);
+  // Reuse the existing token from .auth/user.json if it's there — avoids
+  // hammering /auth/login on every run and hitting the rate limit.
+  let token = "";
+  let user: any = null;
+
+  if (fs.existsSync(AUTH_STATE_PATH)) {
+    try {
+      const stored = JSON.parse(fs.readFileSync(AUTH_STATE_PATH, "utf8"));
+      const ls = stored.origins?.[0]?.localStorage ?? [];
+      const t  = ls.find((e: any) => e.name === "token")?.value ?? "";
+      if (t) {
+        token = t;
+        user  = {
+          username: ls.find((e: any) => e.name === "username")?.value ?? "",
+          name:     ls.find((e: any) => e.name === "name")?.value ?? "",
+          id:       ls.find((e: any) => e.name === "id")?.value ?? "",
+          phone:    ls.find((e: any) => e.name === "phone")?.value ?? TEST_PHONE,
+          email:    ls.find((e: any) => e.name === "email")?.value ?? TEST_EMAIL,
+          role:     ls.find((e: any) => e.name === "role")?.value ?? "1",
+          isAuth:   true,
+        };
+        console.log(`\n[setup] Reusing stored auth for @${user.username} (delete .auth/ to force re-login)`);
+      }
+    } catch {}
+  }
+
+  if (!token) {
+    console.log(`\n[setup] Authenticating organizer via API...`);
+    const result = await loginUser(TEST_PHONE, TEST_OTP);
+    token = result.token;
+    user  = result.user;
+    if (!token) throw new Error("[setup] No access token — check API_BASE and bypass OTP");
+    console.log(`[setup] Authenticated: ${user?.name ?? "?"} (@${user?.username})`);
+  }
 
   // ── 2. Login through real UI to get authentic browser storageState ────────
   console.log(`[setup] Logging in via UI at ${APP_BASE}...`);
@@ -104,16 +134,22 @@ export default async function globalSetup(_config: FullConfig) {
     console.log("[setup] Auth state injected →", AUTH_STATE_PATH);
   }
 
-  // Always ensure auth-spec phones have completed profiles so tests get direct redirects
-  console.log("[setup] Pre-completing auth phone profiles...");
-  for (const phone of [AUTH_PHONE_VALID, AUTH_PHONE_INVALID, AUTH_PHONE_RESEND, AUTH_PHONE_RETRY]) {
-    try {
-      await new Promise(r => setTimeout(r, 3_000));
-      await loginUser(phone);
-      console.log(`[setup] ${phone} — profile ready`);
-    } catch (err: any) {
-      console.log(`[setup] ${phone} — skipped: ${err?.message}`);
+  // Auth-spec phones only need profile completion once — skip if already done
+  const authPhonesFile = ".auth/auth-phones-done.json";
+  if (!fs.existsSync(authPhonesFile)) {
+    console.log("[setup] Pre-completing auth phone profiles...");
+    for (const phone of [AUTH_PHONE_VALID, AUTH_PHONE_INVALID, AUTH_PHONE_RESEND, AUTH_PHONE_RETRY]) {
+      try {
+        await new Promise(r => setTimeout(r, 3_000));
+        await loginUser(phone);
+        console.log(`[setup] ${phone} — profile ready`);
+      } catch (err: any) {
+        console.log(`[setup] ${phone} — skipped: ${err?.message}`);
+      }
     }
+    fs.writeFileSync(authPhonesFile, JSON.stringify({ done: true, at: new Date().toISOString() }));
+  } else {
+    console.log("[setup] Auth phone profiles already completed (delete .auth/auth-phones-done.json to redo)");
   }
 
   if (skipSeeding) {
