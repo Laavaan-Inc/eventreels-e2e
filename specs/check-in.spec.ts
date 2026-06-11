@@ -8,21 +8,45 @@
  *  4. Already-checked-in guest shows correct status
  */
 
+import * as fs from "fs";
 import { test, expect } from "../fixtures/traced-test";
 import { CheckInPage }    from "../page-objects/CheckInPage";
-import { getSeededEvents, loginUser, registerForEvent } from "../utils/api-helpers";
-import { TEST_PHONE_2, TEST_OTP } from "../config/test-data";
+import {
+  getSeededEvents, getStoredToken, createFixedEvent, loginUser, registerForEvent,
+} from "../utils/api-helpers";
+import { TEST_PHONE_2, TEST_OTP, SEEDED_EVENTS_PATH } from "../config/test-data";
 
-// Pre-requisite: ensure at least one registered guest (ticket) exists on the
-// seeded fixed event before any check-in test runs.
+// Pre-requisite: ensure a fixed event with at least one registered guest
+// (ticket) exists before any check-in test runs.
+// If global-setup didn't seed one (or seeding failed), create it here.
 test.beforeAll(async () => {
-  const s = getSeededEvents();
-  if (!s.fixedEventId) return;
-  try {
-    const { token } = await loginUser(TEST_PHONE_2, TEST_OTP);
-    await registerForEvent(token, s.fixedEventId);
-  } catch {
-    // Already registered or event not found — either is acceptable
+  let seeded = getSeededEvents();
+
+  // ── 1. Create event if missing ──────────────────────────────────────────
+  if (!seeded.fixedEventId) {
+    try {
+      const token = getStoredToken();
+      const ev = await createFixedEvent(token, "E2E Free Event");
+      seeded = {
+        ...seeded,
+        fixedEventId:   ev._id ?? ev.id ?? "",
+        fixedShortCode: ev.shortCode ?? "",
+      };
+      fs.writeFileSync(SEEDED_EVENTS_PATH, JSON.stringify(seeded, null, 2));
+      console.log("[check-in setup] Created event:", seeded.fixedEventId);
+    } catch (err: any) {
+      console.warn("[check-in setup] Could not create event:", err?.message);
+    }
+  }
+
+  // ── 2. Register a guest (ticket) on the event ───────────────────────────
+  if (seeded.fixedEventId) {
+    try {
+      const { token } = await loginUser(TEST_PHONE_2, TEST_OTP);
+      await registerForEvent(token, seeded.fixedEventId);
+    } catch {
+      // Already registered — acceptable
+    }
   }
 });
 
