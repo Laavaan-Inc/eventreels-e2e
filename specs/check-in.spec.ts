@@ -12,19 +12,20 @@ import * as fs from "fs";
 import { test, expect } from "../fixtures/traced-test";
 import { CheckInPage }    from "../page-objects/CheckInPage";
 import {
-  getSeededEvents, getStoredToken, createFixedEvent, loginUser, getGuestTicketCode,
+  getSeededEvents, getStoredToken, createFixedEvent, loginUser,
+  requestTicket, getGuestTicketCode,
 } from "../utils/api-helpers";
-import { TEST_PHONE_4, TEST_OTP, APP_BASE, SEEDED_EVENTS_PATH } from "../config/test-data";
+import { TEST_PHONE_4, TEST_OTP, SEEDED_EVENTS_PATH } from "../config/test-data";
 
-// Pre-requisite: ensure a fixed event exists and TEST_PHONE_4 has registered
-// (i.e. a real ticket is present) before any check-in test runs.
+// Pre-requisite: ensure a real ticket exists on a fixed event before any
+// check-in test runs.
 //
 // Flow:
 //  1. If no fixedEventId → create the event via API (organizer token)
-//  2. Use TEST_PHONE_4 (+14444444444) as a real attendee:
-//     open a browser, inject their auth, navigate to the event page,
-//     and click Register — exactly as a guest would.
-test.beforeAll(async ({ browser }) => {
+//  2. Login TEST_PHONE_4 and call POST /participants/request — the same
+//     endpoint the Register button hits — to create a real ticket with a code
+//  3. Fetch the ticketCode from the organizer's guest list and store it
+test.beforeAll(async () => {
   let seeded = getSeededEvents();
 
   // ── 1. Create event if it doesn't exist yet ─────────────────────────────
@@ -45,63 +46,29 @@ test.beforeAll(async ({ browser }) => {
     }
   }
 
-  if (!seeded.fixedEventId || !seeded.organizerUsername || !seeded.fixedShortCode) return;
-
-  // ── 2. Register as TEST_PHONE_4 via the real event page UI ─────────────
+  // ── 2. Register TEST_PHONE_4 — POST /participants/request creates the ticket
   try {
-    const { token, user } = await loginUser(TEST_PHONE_4, TEST_OTP);
+    const { token } = await loginUser(TEST_PHONE_4, TEST_OTP);
+    await requestTicket(token, seeded.fixedEventId);
+    console.log("[check-in setup] TEST_PHONE_4 ticket created");
+  } catch (err: any) {
+    // "already registered" errors are fine — ticket already exists
+    console.log("[check-in setup] requestTicket:", err?.message);
+  }
 
-    // Build auth storage state the same way global-setup does
-    const storageState = {
-      cookies: [] as any[],
-      origins: [{
-        origin: APP_BASE,
-        localStorage: [
-          { name: "token",    value: token },
-          { name: "id",       value: String(user?.id ?? "") },
-          { name: "name",     value: String(user?.name ?? "Test Guest 4444") },
-          { name: "username", value: String(user?.username ?? "") },
-          { name: "phone",    value: String(user?.phone ?? TEST_PHONE_4) },
-          { name: "isAuth",   value: "true" },
-        ],
-      }],
-    };
-
-    const ctx  = await browser.newContext({ storageState });
-    const page = await ctx.newPage();
-
-    // Navigate to the event page as a real guest would
-    await page.goto(`${APP_BASE}/${seeded.organizerUsername}/${seeded.fixedShortCode}`);
-    await page.waitForLoadState("networkidle");
-
-    // Click the Register button (only shown to guests who haven't registered yet)
-    const registerBtn = page.getByRole("button", { name: /register|join|going/i }).first();
-    if (await registerBtn.isVisible({ timeout: 8_000 }).catch(() => false)) {
-      await registerBtn.click();
-      await page.waitForTimeout(2_000);
-      console.log("[check-in setup] TEST_PHONE_4 registered via event page UI");
+  // ── 3. Fetch the ticketCode from the organizer guest list ───────────────
+  try {
+    const organizerToken = getStoredToken();
+    const ticketCode = await getGuestTicketCode(organizerToken, seeded.fixedEventId);
+    if (ticketCode) {
+      seeded = { ...seeded, fixedTicketCode: ticketCode };
+      fs.writeFileSync(SEEDED_EVENTS_PATH, JSON.stringify(seeded, null, 2));
+      console.log("[check-in setup] Ticket code ready:", ticketCode);
     } else {
-      console.log("[check-in setup] Register button not found — already registered or event not bookable");
-    }
-
-    await ctx.close();
-
-    // ── 3. Fetch the real ticket code (organizer sees all tickets) ──────────
-    try {
-      const organizerToken = getStoredToken();
-      const ticketCode = await getGuestTicketCode(organizerToken, seeded.fixedEventId);
-      if (ticketCode) {
-        seeded = { ...seeded, fixedTicketCode: ticketCode };
-        fs.writeFileSync(SEEDED_EVENTS_PATH, JSON.stringify(seeded, null, 2));
-        console.log("[check-in setup] Ticket code stored:", ticketCode);
-      } else {
-        console.warn("[check-in setup] No ticket code found in guest list");
-      }
-    } catch (err: any) {
-      console.warn("[check-in setup] Could not fetch ticket code:", err?.message);
+      console.warn("[check-in setup] No ticket code found — valid-ticket test will skip");
     }
   } catch (err: any) {
-    console.warn("[check-in setup] UI registration failed:", err?.message);
+    console.warn("[check-in setup] Could not fetch ticket code:", err?.message);
   }
 });
 

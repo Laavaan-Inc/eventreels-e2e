@@ -120,6 +120,11 @@ export async function registerForEvent(token: string, eventId: string): Promise<
   }, token).catch(() => null);
 }
 
+/** Create a real ticket (ticketCode) for a guest on an event — same endpoint the UI calls. */
+export async function requestTicket(token: string, eventId: string): Promise<void> {
+  await apiFetch("POST", "/participants/request", { eventId, rsvpStatus: "going" }, token);
+}
+
 export async function rsvpDateUndecided(token: string, eventId: string, status: "going" | "maybe" | "cancel"): Promise<void> {
   await apiFetch("POST", "/participants/update-rsvp", { eventId, status }, token);
 }
