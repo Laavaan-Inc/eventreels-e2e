@@ -120,9 +120,12 @@ export async function registerForEvent(token: string, eventId: string): Promise<
   }, token).catch(() => null);
 }
 
-/** Create a real ticket (ticketCode) for a guest on an event — same endpoint the UI calls. */
-export async function requestTicket(token: string, eventId: string): Promise<void> {
-  await apiFetch("POST", "/participants/request", { eventId, rsvpStatus: "going" }, token);
+/** Create a real ticket for a guest — same endpoint the Register button calls.
+ *  Returns the ticketCode if the server includes it in the response. */
+export async function requestTicket(token: string, eventId: string): Promise<string | null> {
+  const res = await apiFetch("POST", "/participants/request", { eventId, rsvpStatus: "going" }, token);
+  // Response may be the participant record: { ticketCode, ... } or { ticket: { ticketCode } }
+  return res?.ticketCode ?? res?.ticket?.ticketCode ?? res?.data?.ticketCode ?? null;
 }
 
 export async function rsvpDateUndecided(token: string, eventId: string, status: "going" | "maybe" | "cancel"): Promise<void> {

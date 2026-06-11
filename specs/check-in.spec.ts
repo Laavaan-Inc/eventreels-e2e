@@ -55,11 +55,13 @@ test.beforeAll(async () => {
     console.warn("[check-in setup] Could not login TEST_PHONE_4:", err?.message);
   }
 
+  let ticketCode: string | null = null;
+
   if (guestToken) {
-    // Try the proper ticket endpoint first; fall back to invite-link if it doesn't exist
+    // Try the proper ticket endpoint — returns the ticketCode directly in the response
     try {
-      await requestTicket(guestToken, seeded.fixedEventId);
-      console.log("[check-in setup] Ticket created via POST /participants/request");
+      ticketCode = await requestTicket(guestToken, seeded.fixedEventId);
+      console.log("[check-in setup] Ticket created via POST /participants/request, code:", ticketCode ?? "(not in response)");
     } catch (err: any) {
       console.warn("[check-in setup] /participants/request failed:", err?.message, "— trying /events/handle-invite-link");
       try {
@@ -71,23 +73,27 @@ test.beforeAll(async () => {
     }
   }
 
-  // ── 3. Fetch the ticketCode from the organizer guest list ───────────────
-  try {
-    const organizerToken = getStoredToken();
-    const guests = await getGuestList(organizerToken, seeded.fixedEventId);
-    console.log("[check-in setup] Guest list:", JSON.stringify(guests.map((g: any) => ({
-      name: g.name, ticketCode: g.ticketCode ?? "(none)",
-    }))));
-    const ticketCode = guests.find((g: any) => g.ticketCode)?.ticketCode ?? null;
-    if (ticketCode) {
-      seeded = { ...seeded, fixedTicketCode: ticketCode };
-      fs.writeFileSync(SEEDED_EVENTS_PATH, JSON.stringify(seeded, null, 2));
-      console.log("[check-in setup] Ticket code ready:", ticketCode);
-    } else {
-      console.warn("[check-in setup] No ticketCode on any guest — valid-ticket test will skip");
+  // ── 3. Persist ticketCode — try response first, then organizer guest list ─
+  if (!ticketCode) {
+    // ticketCode wasn't in the response body — fetch it from the guest list
+    try {
+      const organizerToken = getStoredToken();
+      const guests = await getGuestList(organizerToken, seeded.fixedEventId);
+      console.log("[check-in setup] Guests:", JSON.stringify(guests.map((g: any) => ({
+        name: g.name, ticketCode: g.ticketCode ?? "(none)",
+      }))));
+      ticketCode = guests.find((g: any) => g.ticketCode)?.ticketCode ?? null;
+    } catch (err: any) {
+      console.warn("[check-in setup] Could not fetch guest list:", err?.message);
     }
-  } catch (err: any) {
-    console.warn("[check-in setup] Could not fetch guest list:", err?.message);
+  }
+
+  if (ticketCode) {
+    seeded = { ...seeded, fixedTicketCode: ticketCode };
+    fs.writeFileSync(SEEDED_EVENTS_PATH, JSON.stringify(seeded, null, 2));
+    console.log("[check-in setup] Ticket code ready:", ticketCode);
+  } else {
+    console.warn("[check-in setup] No ticketCode found — valid-ticket test will skip");
   }
 });
 
