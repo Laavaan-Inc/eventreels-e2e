@@ -12,17 +12,22 @@ import * as fs from "fs";
 import { test, expect } from "../fixtures/traced-test";
 import { CheckInPage }    from "../page-objects/CheckInPage";
 import {
-  getSeededEvents, getStoredToken, createFixedEvent, loginUser, registerForEvent,
+  getSeededEvents, getStoredToken, createFixedEvent, loginUser,
 } from "../utils/api-helpers";
-import { TEST_PHONE_2, TEST_OTP, SEEDED_EVENTS_PATH } from "../config/test-data";
+import { TEST_PHONE_4, TEST_OTP, APP_BASE, SEEDED_EVENTS_PATH } from "../config/test-data";
 
-// Pre-requisite: ensure a fixed event with at least one registered guest
-// (ticket) exists before any check-in test runs.
-// If global-setup didn't seed one (or seeding failed), create it here.
-test.beforeAll(async () => {
+// Pre-requisite: ensure a fixed event exists and TEST_PHONE_4 has registered
+// (i.e. a real ticket is present) before any check-in test runs.
+//
+// Flow:
+//  1. If no fixedEventId → create the event via API (organizer token)
+//  2. Use TEST_PHONE_4 (+14444444444) as a real attendee:
+//     open a browser, inject their auth, navigate to the event page,
+//     and click Register — exactly as a guest would.
+test.beforeAll(async ({ browser }) => {
   let seeded = getSeededEvents();
 
-  // ── 1. Create event if missing ──────────────────────────────────────────
+  // ── 1. Create event if it doesn't exist yet ─────────────────────────────
   if (!seeded.fixedEventId) {
     try {
       const token = getStoredToken();
@@ -36,17 +41,53 @@ test.beforeAll(async () => {
       console.log("[check-in setup] Created event:", seeded.fixedEventId);
     } catch (err: any) {
       console.warn("[check-in setup] Could not create event:", err?.message);
+      return;
     }
   }
 
-  // ── 2. Register a guest (ticket) on the event ───────────────────────────
-  if (seeded.fixedEventId) {
-    try {
-      const { token } = await loginUser(TEST_PHONE_2, TEST_OTP);
-      await registerForEvent(token, seeded.fixedEventId);
-    } catch {
-      // Already registered — acceptable
+  if (!seeded.fixedEventId || !seeded.organizerUsername || !seeded.fixedShortCode) return;
+
+  // ── 2. Register as TEST_PHONE_4 via the real event page UI ─────────────
+  try {
+    const { token, user } = await loginUser(TEST_PHONE_4, TEST_OTP);
+
+    // Build auth storage state the same way global-setup does
+    const appUrl      = new URL(APP_BASE);
+    const storageState = {
+      cookies: [] as any[],
+      origins: [{
+        origin: APP_BASE,
+        localStorage: [
+          { name: "token",    value: token },
+          { name: "id",       value: String(user?.id ?? "") },
+          { name: "name",     value: String(user?.name ?? "Test Guest 4444") },
+          { name: "username", value: String(user?.username ?? "") },
+          { name: "phone",    value: String(user?.phone ?? TEST_PHONE_4) },
+          { name: "isAuth",   value: "true" },
+        ],
+      }],
+    };
+
+    const ctx  = await browser.newContext({ storageState });
+    const page = await ctx.newPage();
+
+    // Navigate to the event page as a real guest would
+    await page.goto(`${APP_BASE}/${seeded.organizerUsername}/${seeded.fixedShortCode}`);
+    await page.waitForLoadState("networkidle");
+
+    // Click the Register button (only shown to guests who haven't registered yet)
+    const registerBtn = page.getByRole("button", { name: /register|join|going/i }).first();
+    if (await registerBtn.isVisible({ timeout: 8_000 }).catch(() => false)) {
+      await registerBtn.click();
+      await page.waitForTimeout(2_000);
+      console.log("[check-in setup] TEST_PHONE_4 registered via event page UI");
+    } else {
+      console.log("[check-in setup] Register button not found — already registered or event not bookable");
     }
+
+    await ctx.close();
+  } catch (err: any) {
+    console.warn("[check-in setup] UI registration failed:", err?.message);
   }
 });
 
