@@ -4,7 +4,7 @@ import { API_BASE, AUTH_STATE_PATH, SEEDED_EVENTS_PATH } from "../config/test-da
 
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 
-async function apiFetch(method: string, path: string, body?: object, token?: string, retry = 3): Promise<any> {
+async function apiFetch(method: string, path: string, body?: object, token?: string, retry = 5): Promise<any> {
   for (let attempt = 1; attempt <= retry; attempt++) {
     const res = await fetch(`${API_BASE}${path}`, {
       method,
@@ -17,7 +17,10 @@ async function apiFetch(method: string, path: string, body?: object, token?: str
 
     if (res.status === 429) {
       if (attempt < retry) {
-        await sleep(2_000 * attempt); // 2s, 4s backoff
+        // Exponential backoff: 10s, 20s, 40s, 60s
+        const wait = Math.min(10_000 * attempt, 60_000);
+        console.log(`[api] 429 on ${path} — waiting ${wait / 1000}s (attempt ${attempt}/${retry})`);
+        await sleep(wait);
         continue;
       }
     }

@@ -108,7 +108,7 @@ export default async function globalSetup(_config: FullConfig) {
   console.log("[setup] Pre-completing auth phone profiles...");
   for (const phone of [AUTH_PHONE_VALID, AUTH_PHONE_INVALID, AUTH_PHONE_RESEND, AUTH_PHONE_RETRY]) {
     try {
-      await new Promise(r => setTimeout(r, 600));
+      await new Promise(r => setTimeout(r, 3_000));
       await loginUser(phone);
       console.log(`[setup] ${phone} — profile ready`);
     } catch (err: any) {
