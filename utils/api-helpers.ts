@@ -134,6 +134,17 @@ export async function getPendingRequests(token: string, eventId: string): Promis
   return Array.isArray(data) ? data : [];
 }
 
+/** Returns true if the token is still accepted by the server (any non-401 response). */
+export async function checkTokenValid(token: string): Promise<boolean> {
+  try {
+    await apiFetch("POST", "/events/get-guests", { eventId: "ping" }, token, 1);
+    return true;
+  } catch (err: any) {
+    // 401 = token expired/invalid; anything else (400, 404…) = token is fine
+    return !String(err?.message).includes("401");
+  }
+}
+
 /** Fetch the guest list for an event (organizer token) and return the first ticketCode found. */
 export async function getGuestTicketCode(token: string, eventId: string): Promise<string | null> {
   const guests = await apiFetch("POST", "/events/get-guests", { eventId }, token);

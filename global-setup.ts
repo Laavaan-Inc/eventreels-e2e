@@ -21,6 +21,7 @@ import {
 } from "./config/test-data";
 import {
   loginUser,
+  checkTokenValid,
   createFixedEvent,
   createApprovalEvent,
   createDateUndecidedEvent,
@@ -59,6 +60,15 @@ export default async function globalSetup(_config: FullConfig) {
         console.log(`\n[setup] Reusing stored auth for @${user.username} (delete .auth/ to force re-login)`);
       }
     } catch {}
+  }
+
+  // Validate the stored token — if it expired, clear it and re-login
+  if (token && !(await checkTokenValid(token))) {
+    console.log(`[setup] Stored token expired — re-authenticating...`);
+    token = "";
+    user  = null;
+    // Also clear auth state so UI login runs fresh
+    fs.rmSync(AUTH_STATE_PATH, { force: true });
   }
 
   if (!token) {
