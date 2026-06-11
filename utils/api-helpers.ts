@@ -160,6 +160,12 @@ export async function getGuestTicketCode(token: string, eventId: string): Promis
   return guests.find((g: any) => g.ticketCode)?.ticketCode ?? null;
 }
 
+/** Fetch the guest's own event data — returns userTicket.ticketCode if the user has a ticket. */
+export async function getMyTicketCode(token: string, eventId: string): Promise<string | null> {
+  const data = await apiFetch("POST", "/events/get-event-data", { eventId }, token);
+  return data?.userTicket?.ticketCode ?? null;
+}
+
 // ── Stored state ──────────────────────────────────────────────────────────────
 
 export function getStoredToken(): string {
@@ -173,4 +179,14 @@ export function getSeededEvents(): Record<string, string> {
   const { readFileSync, existsSync } = require("fs");
   if (!existsSync(SEEDED_EVENTS_PATH)) return {};
   return JSON.parse(readFileSync(SEEDED_EVENTS_PATH, "utf8"));
+}
+
+/** Returns the organizer token written by global-setup, falling back to the storageState reader. */
+export function getOrganizerToken(): string {
+  const { readFileSync, existsSync } = require("fs");
+  const p = ".auth/organizer-token.json";
+  if (existsSync(p)) {
+    try { return JSON.parse(readFileSync(p, "utf8")).token ?? ""; } catch {}
+  }
+  return getStoredToken();
 }

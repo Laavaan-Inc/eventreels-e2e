@@ -12,8 +12,8 @@ import * as fs from "fs";
 import { test, expect } from "../fixtures/traced-test";
 import { CheckInPage }    from "../page-objects/CheckInPage";
 import {
-  getSeededEvents, getStoredToken, createFixedEvent, loginUser,
-  requestTicket, registerForEvent, getGuestList,
+  getSeededEvents, getOrganizerToken, createFixedEvent, loginUser,
+  requestTicket, registerForEvent, getGuestList, getMyTicketCode,
 } from "../utils/api-helpers";
 import { TEST_PHONE_4, TEST_OTP, SEEDED_EVENTS_PATH } from "../config/test-data";
 
@@ -31,7 +31,7 @@ test.beforeAll(async () => {
   // ── 1. Create event if it doesn't exist yet ─────────────────────────────
   if (!seeded.fixedEventId) {
     try {
-      const token = getStoredToken();
+      const token = getOrganizerToken();
       const ev = await createFixedEvent(token, "E2E Free Event");
       seeded = {
         ...seeded,
@@ -58,30 +58,31 @@ test.beforeAll(async () => {
   let ticketCode: string | null = null;
 
   if (guestToken) {
-    // Try the proper ticket endpoint — returns the ticketCode directly in the response
+    // Request ticket (may already exist — that's fine)
     try {
       ticketCode = await requestTicket(guestToken, seeded.fixedEventId);
-      console.log("[check-in setup] Ticket created via POST /participants/request, code:", ticketCode ?? "(not in response)");
+      console.log("[check-in setup] /participants/request → code:", ticketCode ?? "(not in response)");
     } catch (err: any) {
-      console.warn("[check-in setup] /participants/request failed:", err?.message, "— trying /events/handle-invite-link");
+      console.warn("[check-in setup] /participants/request failed:", err?.message);
+    }
+
+    // Fetch ticketCode from guest's own event data (most reliable source)
+    if (!ticketCode) {
       try {
-        await registerForEvent(guestToken, seeded.fixedEventId);
-        console.log("[check-in setup] Registered via POST /events/handle-invite-link");
-      } catch (err2: any) {
-        console.warn("[check-in setup] Both registration endpoints failed:", err2?.message);
+        ticketCode = await getMyTicketCode(guestToken, seeded.fixedEventId);
+        console.log("[check-in setup] ticketCode from get-event-data:", ticketCode ?? "(none)");
+      } catch (err: any) {
+        console.warn("[check-in setup] get-event-data failed:", err?.message);
       }
     }
   }
 
-  // ── 3. Persist ticketCode — try response first, then organizer guest list ─
+  // ── 3. Persist ticketCode — fallback to organizer guest list ──────────────
   if (!ticketCode) {
-    // ticketCode wasn't in the response body — fetch it from the guest list
     try {
-      const organizerToken = getStoredToken();
+      const organizerToken = getOrganizerToken();
       const guests = await getGuestList(organizerToken, seeded.fixedEventId);
-      console.log("[check-in setup] Guests:", JSON.stringify(guests.map((g: any) => ({
-        name: g.name, ticketCode: g.ticketCode ?? "(none)",
-      }))));
+      console.log("[check-in setup] Guests (full):", JSON.stringify(guests.slice(0, 3)));
       ticketCode = guests.find((g: any) => g.ticketCode)?.ticketCode ?? null;
     } catch (err: any) {
       console.warn("[check-in setup] Could not fetch guest list:", err?.message);

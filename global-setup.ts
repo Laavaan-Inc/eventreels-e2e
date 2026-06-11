@@ -80,6 +80,9 @@ export default async function globalSetup(_config: FullConfig) {
     console.log(`[setup] Authenticated: ${user?.name ?? "?"} (@${user?.username})`);
   }
 
+  // Persist organizer token in a simple file so beforeAll hooks can always read it
+  fs.writeFileSync(".auth/organizer-token.json", JSON.stringify({ token }));
+
   // ── 2. Login through real UI to get authentic browser storageState ────────
   // Skip if we already have a valid storageState — UI login also hits /auth/login
   // and consumes rate-limit quota unnecessarily on repeat runs.
@@ -121,11 +124,29 @@ export default async function globalSetup(_config: FullConfig) {
     await browser.close();
   }
 
-  // Fallback: inject token directly into storageState (same as before)
-  if (!uiLoginOk) {
+  // Always rewrite storageState with the correct APP_BASE origin.
+  // When UI login runs against a different host (e.g. dev.eventreels.com), the
+  // saved origin won't match localhost:3000 — Playwright would ignore that
+  // localStorage entirely, leaving the test browser unauthenticated.
+  {
     const appUrl       = new URL(APP_BASE);
     const cookieDomain = appUrl.hostname;
     const isHttps      = appUrl.protocol === "https:";
+
+    // If we did a real UI login, merge the saved localStorage into the new state
+    // so any extra keys the app wrote (avatar, etc.) are preserved.
+    let existingLs: Array<{ name: string; value: string }> = [];
+    if (uiLoginOk && fs.existsSync(AUTH_STATE_PATH)) {
+      try {
+        const saved = JSON.parse(fs.readFileSync(AUTH_STATE_PATH, "utf8"));
+        existingLs = saved.origins?.[0]?.localStorage ?? [];
+      } catch {}
+    }
+
+    // Merge: known keys take precedence (they come from the fresh API token).
+    const knownKeys = new Set(["token", "id", "name", "username", "phone", "email", "role", "isAuth"]);
+    const extraLs   = existingLs.filter((e) => !knownKeys.has(e.name));
+
     const storageState = {
       cookies: [{
         name: "token", value: token, domain: cookieDomain, path: "/",
@@ -143,11 +164,12 @@ export default async function globalSetup(_config: FullConfig) {
           { name: "email",   value: String(user?.email ?? TEST_EMAIL) },
           { name: "role",    value: String(user?.role ?? "1") },
           { name: "isAuth",  value: "true" },
+          ...extraLs,
         ],
       }],
     };
     fs.writeFileSync(AUTH_STATE_PATH, JSON.stringify(storageState, null, 2));
-    console.log("[setup] Auth state injected →", AUTH_STATE_PATH);
+    console.log("[setup] Auth state written with origin:", APP_BASE);
   }
 
   // Auth-spec phones only need profile completion once — skip if already done
@@ -176,66 +198,84 @@ export default async function globalSetup(_config: FullConfig) {
     return;
   }
 
-  // ── 2. Load cover image ───────────────────────────────────────────────────
-  let coverBase64: string | undefined;
-  const imgPath = path.join("fixtures", "assets", "test-photo.jpg");
-  if (fs.existsSync(imgPath)) coverBase64 = fs.readFileSync(imgPath).toString("base64");
+  // ── 2. Reuse or create seeded events ─────────────────────────────────────
+  // Reuse existing seeded-events.json if all three event IDs are present — this
+  // avoids recreating events and re-logging secondary users on every run.
+  let seeded: Record<string, string> = { organizerUsername: user?.username ?? "" };
+  const existingSeeded = fs.existsSync(SEEDED_EVENTS_PATH)
+    ? JSON.parse(fs.readFileSync(SEEDED_EVENTS_PATH, "utf8")) as Record<string, string>
+    : {};
 
-  const seeded: Record<string, string> = { organizerUsername: user?.username ?? "" };
+  // Re-seed if event IDs are missing OR the stored environment doesn't match the current one.
+  const envChanged = existingSeeded.appBase && existingSeeded.appBase !== APP_BASE;
+  const needsSeeding = !existingSeeded.fixedEventId || !existingSeeded.approvalEventId || !existingSeeded.tbdEventId || !!envChanged;
+  if (!needsSeeding) {
+    seeded = { ...existingSeeded, organizerUsername: user?.username ?? "" };
+    console.log("[setup] Reusing seeded events (delete .auth/seeded-events.json to re-seed)");
+    fs.writeFileSync(SEEDED_EVENTS_PATH, JSON.stringify(seeded, null, 2));
+  } else {
+    // ── Load cover image ─────────────────────────────────────────────────────
+    let coverBase64: string | undefined;
+    const imgPath = path.join("fixtures", "assets", "test-photo.jpg");
+    if (fs.existsSync(imgPath)) coverBase64 = fs.readFileSync(imgPath).toString("base64");
 
-  // ── 3. Seed events ────────────────────────────────────────────────────────
-  for (const [key, fn] of [
-    ["fixed",    () => createFixedEvent(token, "E2E Free Event", coverBase64)],
-    ["approval", () => createApprovalEvent(token, "E2E Approval Event", coverBase64)],
-    ["tbd",      () => createDateUndecidedEvent(token, "E2E Date TBD Event", coverBase64)],
-  ] as const) {
-    try {
-      const ev = await fn();
-      seeded[`${key}EventId`]        = ev._id ?? ev.id ?? "";
-      seeded[`${key}ShortCode`]      = ev.shortCode ?? "";
-      console.log(`[setup] ${key} event: ${seeded[`${key}EventId`]} (${seeded[`${key}ShortCode`] || "no shortcode"})`);
-    } catch (err: any) {
-      console.log(`[setup] ${key} event skipped: ${err?.message}`);
-    }
-  }
-
-  // ── 4. Seed RSVPs on TBD event ───────────────────────────────────────────
-  const secondaryTokens: Record<string, string> = {};
-
-  if (seeded.tbdEventId) {
-    for (const [phone, status, label] of [
-      [TEST_PHONE_2, "going",  "Interested"],
-      [TEST_PHONE_3, "maybe",  "Maybe"],
-      [TEST_PHONE_4, "cancel", "Not going"],
+    // ── Seed events ──────────────────────────────────────────────────────────
+    for (const [key, fn] of [
+      ["fixed",    () => createFixedEvent(token, "E2E Free Event", coverBase64)],
+      ["approval", () => createApprovalEvent(token, "E2E Approval Event", coverBase64)],
+      ["tbd",      () => createDateUndecidedEvent(token, "E2E Date TBD Event", coverBase64)],
     ] as const) {
       try {
-        await new Promise(r => setTimeout(r, 1_200));
-        const { token: t } = await loginUser(phone);
-        secondaryTokens[phone] = t;
-        await rsvpDateUndecided(t, seeded.tbdEventId, status);
-        console.log(`[setup] ${phone} → ${label}`);
+        const ev = await fn();
+        seeded[`${key}EventId`]        = ev._id ?? ev.id ?? "";
+        seeded[`${key}ShortCode`]      = ev.shortCode ?? "";
+        console.log(`[setup] ${key} event: ${seeded[`${key}EventId`]} (${seeded[`${key}ShortCode`] || "no shortcode"})`);
       } catch (err: any) {
-        console.log(`[setup] RSVP ${label} skipped: ${err?.message}`);
+        console.log(`[setup] ${key} event skipped: ${err?.message}`);
       }
     }
-  }
 
-  // ── 5. Seed registration on fixed event ──────────────────────────────────
-  if (seeded.fixedEventId) {
-    try {
-      const t2 = secondaryTokens[TEST_PHONE_2] ?? (await (async () => {
-        await new Promise(r => setTimeout(r, 1_200));
-        const { token: t } = await loginUser(TEST_PHONE_2);
-        return t;
-      })());
-      await registerForEvent(t2, seeded.fixedEventId);
-      console.log("[setup] User 2 registered for fixed event");
-    } catch (err: any) {
-      console.log(`[setup] Fixed RSVP skipped: ${err?.message}`);
+    // ── Seed RSVPs on TBD event ──────────────────────────────────────────────
+    const secondaryTokens: Record<string, string> = {};
+
+    if (seeded.tbdEventId) {
+      for (const [phone, status, label] of [
+        [TEST_PHONE_2, "going",  "Interested"],
+        [TEST_PHONE_3, "maybe",  "Maybe"],
+        [TEST_PHONE_4, "cancel", "Not going"],
+      ] as const) {
+        try {
+          await new Promise(r => setTimeout(r, 1_200));
+          const { token: t } = await loginUser(phone);
+          secondaryTokens[phone] = t;
+          await rsvpDateUndecided(t, seeded.tbdEventId, status);
+          console.log(`[setup] ${phone} → ${label}`);
+        } catch (err: any) {
+          console.log(`[setup] RSVP ${label} skipped: ${err?.message}`);
+        }
+      }
     }
+
+    // ── Seed registration on fixed event ─────────────────────────────────────
+    if (seeded.fixedEventId) {
+      try {
+        const t2 = secondaryTokens[TEST_PHONE_2] ?? (await (async () => {
+          await new Promise(r => setTimeout(r, 1_200));
+          const { token: t } = await loginUser(TEST_PHONE_2);
+          return t;
+        })());
+        await registerForEvent(t2, seeded.fixedEventId);
+        console.log("[setup] User 2 registered for fixed event");
+      } catch (err: any) {
+        console.log(`[setup] Fixed RSVP skipped: ${err?.message}`);
+      }
+    }
+
+    // ── Write seeded-events.json ──────────────────────────────────────────────
+    seeded.appBase = APP_BASE;
+    fs.writeFileSync(SEEDED_EVENTS_PATH, JSON.stringify(seeded, null, 2));
+    console.log("[setup] Seeded events →", SEEDED_EVENTS_PATH);
   }
 
-  // ── 6. Write seeded-events.json ───────────────────────────────────────────
-  fs.writeFileSync(SEEDED_EVENTS_PATH, JSON.stringify(seeded, null, 2));
-  console.log("[setup] Seeded events →", SEEDED_EVENTS_PATH, "\n");
+  console.log("[setup] Events ready →", SEEDED_EVENTS_PATH, "\n");
 }
