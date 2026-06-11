@@ -10,7 +10,21 @@
 
 import { test, expect } from "../fixtures/traced-test";
 import { CheckInPage }    from "../page-objects/CheckInPage";
-import { getSeededEvents } from "../utils/api-helpers";
+import { getSeededEvents, loginUser, registerForEvent } from "../utils/api-helpers";
+import { TEST_PHONE_2, TEST_OTP } from "../config/test-data";
+
+// Pre-requisite: ensure at least one registered guest (ticket) exists on the
+// seeded fixed event before any check-in test runs.
+test.beforeAll(async () => {
+  const s = getSeededEvents();
+  if (!s.fixedEventId) return;
+  try {
+    const { token } = await loginUser(TEST_PHONE_2, TEST_OTP);
+    await registerForEvent(token, s.fixedEventId);
+  } catch {
+    // Already registered or event not found — either is acceptable
+  }
+});
 
 test.describe("Check-in — page access", () => {
   test("check-in page loads for organizer's seeded event", async ({ page }) => {
