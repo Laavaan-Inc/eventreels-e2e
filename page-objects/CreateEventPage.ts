@@ -106,7 +106,7 @@ export class CreateEventPage {
   }
 
   async setChipAmount(amount: string) {
-    await this.page.locator('input[placeholder="$ amount"]').first().fill(amount);
+    await this.page.locator('input[placeholder*="amount" i]').first().fill(amount);
   }
 
   async setTicketPrice(price: string) {
@@ -116,7 +116,7 @@ export class CreateEventPage {
       await connectBtn.click();
       await this.page.waitForTimeout(1_500); // fake-connect delay
     }
-    await this.page.locator('input[placeholder="$ amount"]').first().fill(price);
+    await this.page.locator('input[placeholder*="amount" i]').first().fill(price);
   }
 
   // ── Date ─────────────────────────────────────────────────────────────────
@@ -130,7 +130,7 @@ export class CreateEventPage {
 
   async setLocationMode(mode: LocationMode) {
     // Open the location modal (row label changes from "Add Event Location" to the location name once set)
-    const locationRow = this.page.getByText(/Add Event Location|Online/i).first();
+    const locationRow = this.page.getByText(/add event location|^location$|online/i).first();
     if (await locationRow.isVisible({ timeout: 3_000 }).catch(() => false)) {
       await locationRow.click(); await this.page.waitForTimeout(400);
     }
@@ -251,7 +251,6 @@ export class CreateEventPage {
   }
 
   async fillRequiredFields(eventName: string) {
-    await this.mockEventCreateApi();
     await this.fillEventName(eventName);
     await this.uploadCoverImage();
     await this.selectVirtualLocation();
