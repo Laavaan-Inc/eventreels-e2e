@@ -8,29 +8,34 @@ export class CheckInPage {
     await this.page.waitForLoadState("networkidle");
   }
 
-  /** Switch to manual code-entry mode (bypasses camera) */
+  /** Open the Scan dialog then switch to Manual Entry mode */
   async switchToManualMode() {
-    const manualBtn = this.page.getByRole("button", { name: /manual|type.*code|enter.*code/i }).first();
-    if (await manualBtn.isVisible({ timeout: 3_000 }).catch(() => false)) {
+    // The ticket input lives inside a Dialog — open it first via the header "Scan" button
+    const scanBtn = this.page.getByRole("button", { name: /^scan$/i }).first();
+    if (await scanBtn.isVisible({ timeout: 5_000 }).catch(() => false)) {
+      await scanBtn.click();
+      await this.page.waitForTimeout(400);
+    }
+    // Switch to Manual Entry inside the dialog
+    const manualBtn = this.page.getByRole("button", { name: /manual entry/i }).first();
+    if (await manualBtn.isVisible({ timeout: 5_000 }).catch(() => false)) {
       await manualBtn.click();
-    } else {
-      // May be a tab
-      const manualTab = this.page.getByRole("tab", { name: /manual/i }).first();
-      if (await manualTab.isVisible({ timeout: 3_000 }).catch(() => false)) {
-        await manualTab.click();
-      }
+      await this.page.waitForTimeout(400);
     }
   }
 
   async enterTicketCode(code: string) {
-    const input = this.page
-      .locator('input[placeholder*="ticket" i], input[placeholder*="code" i], input[type="text"]')
-      .first();
+    const input = this.page.locator('#ticket-code');
+    await input.waitFor({ state: "visible", timeout: 10_000 });
     await input.fill(code);
   }
 
   async submitCode() {
-    await this.page.getByRole("button", { name: /check.?in|verify|submit|validate/i }).first().click();
+    // The check button has no text (icon only) — press Enter on the input instead
+    const input = this.page.locator('#ticket-code');
+    if (await input.isVisible({ timeout: 2_000 }).catch(() => false)) {
+      await input.press('Enter');
+    }
   }
 
   async expectCheckInSuccess() {
