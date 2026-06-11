@@ -145,12 +145,16 @@ export async function checkTokenValid(token: string): Promise<boolean> {
   }
 }
 
-/** Fetch the guest list for an event (organizer token) and return the first ticketCode found. */
+/** Fetch the full guest list for an event (organizer token). */
+export async function getGuestList(token: string, eventId: string): Promise<any[]> {
+  const data = await apiFetch("POST", "/events/get-guests", { eventId }, token);
+  return Array.isArray(data) ? data : [];
+}
+
+/** Fetch the guest list and return the first ticketCode found. */
 export async function getGuestTicketCode(token: string, eventId: string): Promise<string | null> {
-  const guests = await apiFetch("POST", "/events/get-guests", { eventId }, token);
-  if (!Array.isArray(guests)) return null;
-  const guest = guests.find((g: any) => g.ticketCode);
-  return guest?.ticketCode ?? null;
+  const guests = await getGuestList(token, eventId);
+  return guests.find((g: any) => g.ticketCode)?.ticketCode ?? null;
 }
 
 // ── Stored state ──────────────────────────────────────────────────────────────

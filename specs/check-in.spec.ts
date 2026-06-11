@@ -13,7 +13,7 @@ import { test, expect } from "../fixtures/traced-test";
 import { CheckInPage }    from "../page-objects/CheckInPage";
 import {
   getSeededEvents, getStoredToken, createFixedEvent, loginUser,
-  requestTicket, getGuestTicketCode,
+  requestTicket, registerForEvent, getGuestList,
 } from "../utils/api-helpers";
 import { TEST_PHONE_4, TEST_OTP, SEEDED_EVENTS_PATH } from "../config/test-data";
 
@@ -46,29 +46,48 @@ test.beforeAll(async () => {
     }
   }
 
-  // ── 2. Register TEST_PHONE_4 — POST /participants/request creates the ticket
+  // ── 2. Register TEST_PHONE_4 and create a real ticket ──────────────────
+  let guestToken = "";
   try {
     const { token } = await loginUser(TEST_PHONE_4, TEST_OTP);
-    await requestTicket(token, seeded.fixedEventId);
-    console.log("[check-in setup] TEST_PHONE_4 ticket created");
+    guestToken = token;
   } catch (err: any) {
-    // "already registered" errors are fine — ticket already exists
-    console.log("[check-in setup] requestTicket:", err?.message);
+    console.warn("[check-in setup] Could not login TEST_PHONE_4:", err?.message);
+  }
+
+  if (guestToken) {
+    // Try the proper ticket endpoint first; fall back to invite-link if it doesn't exist
+    try {
+      await requestTicket(guestToken, seeded.fixedEventId);
+      console.log("[check-in setup] Ticket created via POST /participants/request");
+    } catch (err: any) {
+      console.warn("[check-in setup] /participants/request failed:", err?.message, "— trying /events/handle-invite-link");
+      try {
+        await registerForEvent(guestToken, seeded.fixedEventId);
+        console.log("[check-in setup] Registered via POST /events/handle-invite-link");
+      } catch (err2: any) {
+        console.warn("[check-in setup] Both registration endpoints failed:", err2?.message);
+      }
+    }
   }
 
   // ── 3. Fetch the ticketCode from the organizer guest list ───────────────
   try {
     const organizerToken = getStoredToken();
-    const ticketCode = await getGuestTicketCode(organizerToken, seeded.fixedEventId);
+    const guests = await getGuestList(organizerToken, seeded.fixedEventId);
+    console.log("[check-in setup] Guest list:", JSON.stringify(guests.map((g: any) => ({
+      name: g.name, ticketCode: g.ticketCode ?? "(none)",
+    }))));
+    const ticketCode = guests.find((g: any) => g.ticketCode)?.ticketCode ?? null;
     if (ticketCode) {
       seeded = { ...seeded, fixedTicketCode: ticketCode };
       fs.writeFileSync(SEEDED_EVENTS_PATH, JSON.stringify(seeded, null, 2));
       console.log("[check-in setup] Ticket code ready:", ticketCode);
     } else {
-      console.warn("[check-in setup] No ticket code found — valid-ticket test will skip");
+      console.warn("[check-in setup] No ticketCode on any guest — valid-ticket test will skip");
     }
   } catch (err: any) {
-    console.warn("[check-in setup] Could not fetch ticket code:", err?.message);
+    console.warn("[check-in setup] Could not fetch guest list:", err?.message);
   }
 });
 
