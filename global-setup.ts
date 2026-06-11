@@ -71,39 +71,45 @@ export default async function globalSetup(_config: FullConfig) {
   }
 
   // ── 2. Login through real UI to get authentic browser storageState ────────
-  console.log(`[setup] Logging in via UI at ${APP_BASE}...`);
-  const browser = await chromium.launch({ headless: true });
-  const context = await browser.newContext();
-  const page    = await context.newPage();
+  // Skip if we already have a valid storageState — UI login also hits /auth/login
+  // and consumes rate-limit quota unnecessarily on repeat runs.
+  let uiLoginOk = fs.existsSync(AUTH_STATE_PATH) && !!token;
+  if (uiLoginOk) {
+    console.log(`[setup] Skipping UI login — storageState already present`);
+  } else {
+    console.log(`[setup] Logging in via UI at ${APP_BASE}...`);
+    const browser = await chromium.launch({ headless: true });
+    const context = await browser.newContext();
+    const page    = await context.newPage();
 
-  let uiLoginOk = false;
-  try {
-    await page.goto(`${APP_BASE}/auth`);
-    await page.waitForLoadState("domcontentloaded");
+    try {
+      await page.goto(`${APP_BASE}/auth`);
+      await page.waitForLoadState("domcontentloaded");
 
-    const phoneInput = page.locator("#phone");
-    await phoneInput.waitFor({ state: "visible", timeout: 15_000 });
-    await phoneInput.fill(TEST_PHONE.replace(/^\+1/, ""));
+      const phoneInput = page.locator("#phone");
+      await phoneInput.waitFor({ state: "visible", timeout: 15_000 });
+      await phoneInput.fill(TEST_PHONE.replace(/^\+1/, ""));
 
-    await page.getByRole("button", { name: /send code/i }).first().click();
+      await page.getByRole("button", { name: /send code/i }).first().click();
 
-    const otpInput = page.locator("#otp");
-    await otpInput.waitFor({ state: "visible", timeout: 15_000 });
-    await otpInput.fill(TEST_OTP);
+      const otpInput = page.locator("#otp");
+      await otpInput.waitFor({ state: "visible", timeout: 15_000 });
+      await otpInput.fill(TEST_OTP);
 
-    const verifyBtn = page.getByRole("button", { name: /verify/i }).first();
-    if (await verifyBtn.isEnabled({ timeout: 2_000 }).catch(() => false)) {
-      await verifyBtn.click();
+      const verifyBtn = page.getByRole("button", { name: /verify/i }).first();
+      if (await verifyBtn.isEnabled({ timeout: 2_000 }).catch(() => false)) {
+        await verifyBtn.click();
+      }
+
+      await page.waitForURL((url) => !url.pathname.includes("/auth"), { timeout: 20_000 });
+      await context.storageState({ path: AUTH_STATE_PATH });
+      console.log(`[setup] UI login OK — now at: ${page.url()}`);
+      uiLoginOk = true;
+    } catch (err: any) {
+      console.log(`[setup] UI login failed (${err?.message}) — falling back to token injection`);
     }
-
-    await page.waitForURL((url) => !url.pathname.includes("/auth"), { timeout: 20_000 });
-    await context.storageState({ path: AUTH_STATE_PATH });
-    console.log(`[setup] UI login OK — now at: ${page.url()}`);
-    uiLoginOk = true;
-  } catch (err: any) {
-    console.log(`[setup] UI login failed (${err?.message}) — falling back to token injection`);
+    await browser.close();
   }
-  await browser.close();
 
   // Fallback: inject token directly into storageState (same as before)
   if (!uiLoginOk) {
