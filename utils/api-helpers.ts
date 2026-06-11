@@ -129,6 +129,14 @@ export async function getPendingRequests(token: string, eventId: string): Promis
   return Array.isArray(data) ? data : [];
 }
 
+/** Fetch the guest list for an event (organizer token) and return the first ticketCode found. */
+export async function getGuestTicketCode(token: string, eventId: string): Promise<string | null> {
+  const guests = await apiFetch("POST", "/events/get-guests", { eventId }, token);
+  if (!Array.isArray(guests)) return null;
+  const guest = guests.find((g: any) => g.ticketCode);
+  return guest?.ticketCode ?? null;
+}
+
 // ── Stored state ──────────────────────────────────────────────────────────────
 
 export function getStoredToken(): string {

@@ -12,7 +12,7 @@ import * as fs from "fs";
 import { test, expect } from "../fixtures/traced-test";
 import { CheckInPage }    from "../page-objects/CheckInPage";
 import {
-  getSeededEvents, getStoredToken, createFixedEvent, loginUser,
+  getSeededEvents, getStoredToken, createFixedEvent, loginUser, getGuestTicketCode,
 } from "../utils/api-helpers";
 import { TEST_PHONE_4, TEST_OTP, APP_BASE, SEEDED_EVENTS_PATH } from "../config/test-data";
 
@@ -52,7 +52,6 @@ test.beforeAll(async ({ browser }) => {
     const { token, user } = await loginUser(TEST_PHONE_4, TEST_OTP);
 
     // Build auth storage state the same way global-setup does
-    const appUrl      = new URL(APP_BASE);
     const storageState = {
       cookies: [] as any[],
       origins: [{
@@ -86,6 +85,21 @@ test.beforeAll(async ({ browser }) => {
     }
 
     await ctx.close();
+
+    // ── 3. Fetch the real ticket code (organizer sees all tickets) ──────────
+    try {
+      const organizerToken = getStoredToken();
+      const ticketCode = await getGuestTicketCode(organizerToken, seeded.fixedEventId);
+      if (ticketCode) {
+        seeded = { ...seeded, fixedTicketCode: ticketCode };
+        fs.writeFileSync(SEEDED_EVENTS_PATH, JSON.stringify(seeded, null, 2));
+        console.log("[check-in setup] Ticket code stored:", ticketCode);
+      } else {
+        console.warn("[check-in setup] No ticket code found in guest list");
+      }
+    } catch (err: any) {
+      console.warn("[check-in setup] Could not fetch ticket code:", err?.message);
+    }
   } catch (err: any) {
     console.warn("[check-in setup] UI registration failed:", err?.message);
   }
@@ -142,6 +156,18 @@ test.describe("Check-in — manual ticket code entry", () => {
       .first().isVisible({ timeout: 4_000 }).catch(() => false);
     const stayedOnPage = url.includes("check-in");
     expect(hasError || stayedOnPage).toBe(true);
+  });
+
+  test("valid ticket code checks in the guest successfully", async ({ page }) => {
+    const s = getSeededEvents();
+    if (!s.fixedEventId || !s.fixedTicketCode) test.skip();
+
+    const c = new CheckInPage(page);
+    await c.navigate(s.fixedEventId);
+    await c.switchToManualMode();
+    await c.enterTicketCode(s.fixedTicketCode);
+    await c.submitCode();
+    await c.expectCheckInSuccess();
   });
 
   test("malformed ticket code (special chars) is handled gracefully", async ({ page }) => {
