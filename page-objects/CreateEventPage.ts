@@ -124,6 +124,12 @@ export class CreateEventPage {
   async setDateUndecided() {
     await this.page.getByText(/decide date later|let guests vote/i).first().click();
     await this.page.waitForTimeout(300);
+    // Fill the first date option — required or the form blocks submission with "Add at least one date option"
+    const dateInput = this.page.locator('input[type="date"]').first();
+    if (await dateInput.isVisible({ timeout: 3_000 }).catch(() => false)) {
+      await dateInput.fill("2027-06-15");
+      await this.page.waitForTimeout(200);
+    }
   }
 
   // ── Location ──────────────────────────────────────────────────────────────
