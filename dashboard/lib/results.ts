@@ -20,6 +20,14 @@ function specToArea(spec: string): string {
   return SPEC_TO_AREA[base] ?? base.replace(/\.spec\.ts$/, "");
 }
 
+const VALID_STATUSES = new Set(["passed", "failed", "skipped", "pending"]);
+function normalizeStatus(s: string | undefined): "passed" | "failed" | "skipped" | "pending" {
+  if (!s) return "pending";
+  if (VALID_STATUSES.has(s)) return s as any;
+  // Playwright also emits "timedOut" and "interrupted" — treat as failed
+  return "failed";
+}
+
 export function walkPlaywrightJson(raw: any): TestResult[] {
   const results: TestResult[] = [];
 
@@ -36,7 +44,7 @@ export function walkPlaywrightJson(raw: any): TestResult[] {
               spec:     path.basename(file),
               area:     specToArea(file),
               name:     `${suite.title} > ${spec.title}`.trim().replace(/^> /, ""),
-              status:   result?.status ?? "pending",
+              status:   normalizeStatus(result?.status),
               duration: Math.round((result?.duration ?? 0) / 1000),
               error:    result?.error?.message,
             });
