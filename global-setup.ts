@@ -62,13 +62,29 @@ export default async function globalSetup(_config: FullConfig) {
     } catch {}
   }
 
-  // Validate the stored token — if it expired, clear it and re-login
-  if (token && !(await checkTokenValid(token))) {
-    console.log(`[setup] Stored token expired — re-authenticating...`);
-    token = "";
-    user  = null;
-    // Also clear auth state so UI login runs fresh
-    fs.rmSync(AUTH_STATE_PATH, { force: true });
+  // Validate the stored token — if it expired or expiring within 60 min, re-login
+  // We check the JWT exp directly (fast, no network) and also ping the API.
+  if (token) {
+    let needsRefresh = false;
+    try {
+      const payload = JSON.parse(Buffer.from(token.split(".")[1], "base64").toString());
+      const expiresIn = (payload.exp ?? 0) * 1000 - Date.now();
+      if (expiresIn < 60 * 60 * 1000) {
+        console.log(`[setup] Token expires in ${Math.round(expiresIn / 60000)} min — re-authenticating...`);
+        needsRefresh = true;
+      }
+    } catch { needsRefresh = true; }
+
+    if (!needsRefresh && !(await checkTokenValid(token))) {
+      console.log(`[setup] Stored token invalid — re-authenticating...`);
+      needsRefresh = true;
+    }
+
+    if (needsRefresh) {
+      token = "";
+      user  = null;
+      fs.rmSync(AUTH_STATE_PATH, { force: true });
+    }
   }
 
   if (!token) {
