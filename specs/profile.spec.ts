@@ -14,11 +14,11 @@ test.describe("Profile tabs", () => {
     await p.expectTabExists("tbd-events");
   });
 
-  test("Upcoming tab shows fixed-date event", async ({ page }) => {
+  test("Hosting tab shows fixed-date event", async ({ page }) => {
     const s = getSeededEvents();
     const p = new ProfilePage(page);
     await p.navigate(s.organizerUsername);
-    await p.selectTab("upcoming-events");
+    await p.selectTab("hosting-events");
     await p.expectEventVisible("E2E Free Event");
   });
 

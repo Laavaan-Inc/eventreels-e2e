@@ -33,7 +33,8 @@ export class ProfilePage {
   }
 
   async expectEventVisible(name: string) {
-    await expect(this.page.getByText(name).first()).toBeVisible({ timeout: 8_000 });
+    // No .first() — passes if any visible match exists (tab content may be rendered but hidden)
+    await expect(this.page.getByText(name)).toBeVisible({ timeout: 8_000 });
   }
 
   async expectEventNotVisible(name: string) {

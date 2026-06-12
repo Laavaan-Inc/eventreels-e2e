@@ -59,8 +59,8 @@ export class CreateEventPage {
     const ta = this.page.locator('textarea[placeholder*="Doors"]').first();
     await ta.waitFor({ state: "visible", timeout: 6_000 });
     await ta.fill(text);
-    // Click the "save" lime button to close the modal
-    const save = this.page.getByRole("button", { name: /^save$/i }).first();
+    // Click the "done" / "save" button to close the description modal
+    const save = this.page.getByRole("button", { name: /^done$|^save$/i }).first();
     await save.waitFor({ state: "visible", timeout: 3_000 });
     await save.click();
     await this.page.waitForTimeout(500);

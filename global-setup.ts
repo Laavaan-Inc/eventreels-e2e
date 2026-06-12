@@ -39,6 +39,7 @@ export default async function globalSetup(_config: FullConfig) {
   // Reuse the existing token from .auth/user.json if it's there — avoids
   // hammering /auth/login on every run and hitting the rate limit.
   let token = "";
+  let refreshToken = "";
   let user: any = null;
 
   if (fs.existsSync(AUTH_STATE_PATH)) {
@@ -47,7 +48,8 @@ export default async function globalSetup(_config: FullConfig) {
       const ls = stored.origins?.[0]?.localStorage ?? [];
       const t  = ls.find((e: any) => e.name === "token")?.value ?? "";
       if (t) {
-        token = t;
+        token        = t;
+        refreshToken = ls.find((e: any) => e.name === "refresh_token")?.value ?? "";
         user  = {
           username: ls.find((e: any) => e.name === "username")?.value ?? "",
           name:     ls.find((e: any) => e.name === "name")?.value ?? "",
@@ -90,8 +92,9 @@ export default async function globalSetup(_config: FullConfig) {
   if (!token) {
     console.log(`\n[setup] Authenticating organizer via API...`);
     const result = await loginUser(TEST_PHONE, TEST_OTP);
-    token = result.token;
-    user  = result.user;
+    token        = result.token;
+    refreshToken = result.refreshToken;
+    user         = result.user;
     if (!token) throw new Error("[setup] No access token — check API_BASE and bypass OTP");
     console.log(`[setup] Authenticated: ${user?.name ?? "?"} (@${user?.username})`);
   }
@@ -160,8 +163,13 @@ export default async function globalSetup(_config: FullConfig) {
     }
 
     // Merge: known keys take precedence (they come from the fresh API token).
-    const knownKeys = new Set(["token", "id", "name", "username", "phone", "email", "role", "isAuth"]);
+    const knownKeys = new Set(["token", "refresh_token", "id", "name", "username", "phone", "email", "role", "isAuth"]);
     const extraLs   = existingLs.filter((e) => !knownKeys.has(e.name));
+
+    // Prefer freshly-fetched refreshToken; fall back to whatever was stored.
+    const storedRefreshToken = refreshToken
+      || existingLs.find((e) => e.name === "refresh_token")?.value
+      || "";
 
     const storageState = {
       cookies: [{
@@ -172,14 +180,15 @@ export default async function globalSetup(_config: FullConfig) {
       origins: [{
         origin: APP_BASE,
         localStorage: [
-          { name: "token",   value: token },
-          { name: "id",      value: String(user?.id ?? "") },
-          { name: "name",    value: String(user?.name ?? TEST_NAME) },
-          { name: "username",value: String(user?.username ?? "") },
-          { name: "phone",   value: String(user?.phone ?? TEST_PHONE) },
-          { name: "email",   value: String(user?.email ?? TEST_EMAIL) },
-          { name: "role",    value: String(user?.role ?? "1") },
-          { name: "isAuth",  value: "true" },
+          { name: "token",         value: token },
+          { name: "refresh_token", value: storedRefreshToken },
+          { name: "id",            value: String(user?.id ?? "") },
+          { name: "name",          value: String(user?.name ?? TEST_NAME) },
+          { name: "username",      value: String(user?.username ?? "") },
+          { name: "phone",         value: String(user?.phone ?? TEST_PHONE) },
+          { name: "email",         value: String(user?.email ?? TEST_EMAIL) },
+          { name: "role",          value: String(user?.role ?? "1") },
+          { name: "isAuth",        value: "true" },
           ...extraLs,
         ],
       }],
@@ -192,7 +201,13 @@ export default async function globalSetup(_config: FullConfig) {
   const authPhonesFile = ".auth/auth-phones-done.json";
   if (!fs.existsSync(authPhonesFile)) {
     console.log("[setup] Pre-completing auth phone profiles...");
-    for (const phone of [AUTH_PHONE_VALID, AUTH_PHONE_INVALID, AUTH_PHONE_RESEND, AUTH_PHONE_RETRY]) {
+    const allTestPhones = [
+      AUTH_PHONE_VALID, AUTH_PHONE_INVALID, AUTH_PHONE_RESEND, AUTH_PHONE_RETRY,
+      // E2E spec phones used inline (must have profiles before tests run)
+      "+15555500001", "+15555500002", "+15555500003",
+      "+15555555551", "+15555555552", "+15555555553", "+15555555554",
+    ];
+    for (const phone of allTestPhones) {
       try {
         await new Promise(r => setTimeout(r, 3_000));
         await loginUser(phone);

@@ -35,11 +35,12 @@ async function apiFetch(method: string, path: string, body?: object, token?: str
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 
-export async function loginUser(phone: string, otp = "000000"): Promise<{ token: string; user: any }> {
+export async function loginUser(phone: string, otp = "000000"): Promise<{ token: string; refreshToken: string; user: any }> {
   await apiFetch("POST", "/auth/login", { phone });
   const data = await apiFetch("POST", "/auth/verify", { phone, code: otp });
 
   let accessToken: string = data.accessToken;
+  let refreshToken: string = data.refreshToken ?? "";
   let user = data.user;
 
   if (data.goTo === "new") {
@@ -54,10 +55,11 @@ export async function loginUser(phone: string, otp = "000000"): Promise<{ token:
       accessToken
     );
     accessToken = profile.accessToken ?? accessToken;
+    refreshToken = profile.refreshToken ?? refreshToken;
     user = profile.user ?? user;
   }
 
-  return { token: accessToken, user };
+  return { token: accessToken, refreshToken, user };
 }
 
 // ── Events ────────────────────────────────────────────────────────────────────
