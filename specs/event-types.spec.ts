@@ -114,11 +114,11 @@ test.describe("Date undecided event", () => {
 // ── Event settings ─────────────────────────────────────────────────────────────
 
 test.describe("Event settings", () => {
-  test("settings sheet shows all key options", async ({ page }) => {
+  test("event options section shows all key rows", async ({ page }) => {
     const c = new CreateEventPage(page);
     await c.navigate();
-    await c.openSettings();
-    for (const text of [/require guest approval/i, /event password/i, /capacity/i, /who can join/i]) {
+    // Settings are inline rows on the form — no separate settings sheet
+    for (const text of [/require approval/i, /capacity/i, /visibility/i, /questionnaire/i]) {
       await expect(page.getByText(text).first()).toBeVisible({ timeout: 5_000 });
     }
   });
@@ -165,15 +165,8 @@ test.describe("Event settings", () => {
     await c.saveSettings();
   });
 
-  test("event password — API payload includes eventPassword", async ({ page }) => {
-    const { c, getBody } = await setup(page, async (c) => {
-      await c.fillRequiredFields("E2E Password Event");
-      await c.openSettings();
-      await c.setEventPassword("test123");
-      await c.saveSettings();
-    });
-    await c.submitForm();
-    expect((await getBody())?.eventPassword).toBe("test123");
+  test.skip("event password — feature removed from create form", async () => {
+    // Event password is not available in the current create form UI.
   });
 });
 
@@ -213,8 +206,9 @@ test.describe("Location", () => {
     const c = new CreateEventPage(page);
     await c.navigate();
     await c.setLocationMode("physical");
+    // LocationSection physical placeholder is "The Brooklyn Mirage"; class is location-input
     await expect(
-      page.locator('input[placeholder*="address" i], input[placeholder*="location" i], input[placeholder*="venue" i]').first()
+      page.locator('input.location-input, input[placeholder*="Brooklyn" i], input[placeholder*="address" i]').first()
     ).toBeVisible({ timeout: 5_000 });
   });
 

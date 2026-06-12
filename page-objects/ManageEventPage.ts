@@ -14,15 +14,15 @@ export class ManageEventPage {
 
   async selectTab(tab: "overview" | "guests" | "community" | "managers" | "analytics" | "payment" | "more") {
     const tabMap: Record<string, RegExp> = {
-      overview:  /overview/i,
-      guests:    /guests/i,
-      community: /community/i,
-      managers:  /managers/i,
-      analytics: /analytics/i,
-      payment:   /payment/i,
-      more:      /more/i,
+      overview:  /^overview$/i,
+      guests:    /^guests$/i,
+      community: /^community$/i,
+      managers:  /^managers$/i,
+      analytics: /^analytics$/i,
+      payment:   /^payment$/i,
+      more:      /^more$/i,
     };
-    await this.page.getByRole("tab", { name: tabMap[tab] }).click();
+    await this.page.getByRole("button", { name: tabMap[tab] }).first().click();
     await this.page.waitForLoadState("networkidle");
   }
 

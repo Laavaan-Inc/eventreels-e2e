@@ -10,7 +10,7 @@ const MAP: Record<TestStatus, { label: string; cls: string }> = {
 };
 
 export default function StatusBadge({ status }: { status?: TestStatus }) {
-  const cfg = MAP[status ?? "pending"];
+  const cfg = MAP[status ?? "pending"] ?? MAP["pending"];
   return (
     <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${cfg.cls}`}>
       {cfg.label}
