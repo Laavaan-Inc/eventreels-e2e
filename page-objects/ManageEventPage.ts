@@ -13,25 +13,41 @@ export class ManageEventPage {
   // ── Tabs ──────────────────────────────────────────────────────────────────
 
   async selectTab(tab: "overview" | "guests" | "community" | "managers" | "analytics" | "payment" | "more") {
+    if (tab === "guests") {
+      // The Guests section is a collapsible sidebar group — clicking the header just toggles it.
+      // Default state is open; ensure it stays open, then activate by clicking a sub-tab.
+      const subTabsVisible = await this.page
+        .getByRole("button", { name: /guests & invites/i })
+        .isVisible({ timeout: 2_000 })
+        .catch(() => false);
+      if (!subTabsVisible) {
+        // Section was closed — click the toggle to re-open it
+        await this.page.getByRole("button", { name: /^guests$/i }).first().click();
+        await this.page.waitForTimeout(400);
+      }
+      // Click the "Guests & Invites" sub-tab to activate the guests content area
+      await this.page.getByRole("button", { name: /guests & invites/i }).first().click();
+      await this.page.waitForLoadState("networkidle");
+      return;
+    }
     const tabMap: Record<string, RegExp> = {
-      overview:  /overview/i,
-      guests:    /guests/i,
-      community: /community/i,
-      managers:  /managers/i,
-      analytics: /analytics/i,
-      payment:   /payment/i,
-      more:      /more/i,
+      overview:  /^overview$/i,
+      community: /^community/i,
+      managers:  /^managers$/i,
+      analytics: /^analytics$/i,
+      payment:   /^payment$/i,
+      more:      /^more$/i,
     };
-    await this.page.getByRole("tab", { name: tabMap[tab] }).click();
+    await this.page.getByRole("button", { name: tabMap[tab] }).first().click();
     await this.page.waitForLoadState("networkidle");
   }
 
   async selectGuestsSubTab(sub: GuestsSubTab) {
     const labelMap: Record<GuestsSubTab, RegExp> = {
-      guests:      /^guests$/i,
-      requests:    /join requests|requests/i,
-      invited:     /invited/i,
-      "track-rsvp": /track rsvp|responses/i,
+      guests:       /guests & invites/i,
+      requests:     /join requests/i,
+      invited:      /invited/i,
+      "track-rsvp": /track rsvps?/i,
     };
     const btn = this.page.getByRole("button", { name: labelMap[sub] }).first();
     if (await btn.isVisible({ timeout: 4_000 }).catch(() => false)) {

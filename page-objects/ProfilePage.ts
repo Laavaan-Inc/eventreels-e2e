@@ -33,14 +33,22 @@ export class ProfilePage {
   }
 
   async expectEventVisible(name: string) {
-    await expect(this.page.getByText(name).first()).toBeVisible({ timeout: 8_000 });
+    // Desktop + mobile both render tab panels in DOM; scope to visible instances only
+    await expect(
+      this.page.getByText(name, { exact: true }).and(this.page.locator(':visible')).first()
+    ).toBeVisible({ timeout: 8_000 });
   }
 
   async expectEventNotVisible(name: string) {
-    await expect(this.page.getByText(new RegExp(name, "i"))).not.toBeVisible({ timeout: 3_000 });
+    // Assert zero visible instances — hidden duplicates in mobile DOM don't count
+    await expect(
+      this.page.getByText(new RegExp(`^${name}$`, "i")).and(this.page.locator(':visible'))
+    ).toHaveCount(0, { timeout: 3_000 });
   }
 
   async expectBadge(badge: "Interested" | "Maybe" | "Not going" | "Hosting") {
-    await expect(this.page.getByText(badge).first()).toBeVisible({ timeout: 5_000 });
+    await expect(
+      this.page.getByText(badge, { exact: true }).and(this.page.locator(':visible')).first()
+    ).toBeVisible({ timeout: 5_000 });
   }
 }

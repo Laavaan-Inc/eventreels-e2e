@@ -8,9 +8,95 @@
  *  4. Already-checked-in guest shows correct status
  */
 
+import * as fs from "fs";
 import { test, expect } from "../fixtures/traced-test";
 import { CheckInPage }    from "../page-objects/CheckInPage";
-import { getSeededEvents } from "../utils/api-helpers";
+import {
+  getSeededEvents, getOrganizerToken, createFixedEvent, loginUser,
+  requestTicket, registerForEvent, getGuestList, getMyTicketCode,
+} from "../utils/api-helpers";
+import { TEST_PHONE_4, TEST_OTP, SEEDED_EVENTS_PATH } from "../config/test-data";
+
+// Pre-requisite: ensure a real ticket exists on a fixed event before any
+// check-in test runs.
+//
+// Flow:
+//  1. If no fixedEventId → create the event via API (organizer token)
+//  2. Login TEST_PHONE_4 and call POST /participants/request — the same
+//     endpoint the Register button hits — to create a real ticket with a code
+//  3. Fetch the ticketCode from the organizer's guest list and store it
+test.beforeAll(async () => {
+  let seeded = getSeededEvents();
+
+  // ── 1. Create event if it doesn't exist yet ─────────────────────────────
+  if (!seeded.fixedEventId) {
+    try {
+      const token = getOrganizerToken();
+      const ev = await createFixedEvent(token, "E2E Free Event");
+      seeded = {
+        ...seeded,
+        fixedEventId:   ev._id ?? ev.id ?? "",
+        fixedShortCode: ev.shortCode ?? "",
+      };
+      fs.writeFileSync(SEEDED_EVENTS_PATH, JSON.stringify(seeded, null, 2));
+      console.log("[check-in setup] Created event:", seeded.fixedEventId);
+    } catch (err: any) {
+      console.warn("[check-in setup] Could not create event:", err?.message);
+      return;
+    }
+  }
+
+  // ── 2. Register TEST_PHONE_4 and create a real ticket ──────────────────
+  let guestToken = "";
+  try {
+    const { token } = await loginUser(TEST_PHONE_4, TEST_OTP);
+    guestToken = token;
+  } catch (err: any) {
+    console.warn("[check-in setup] Could not login TEST_PHONE_4:", err?.message);
+  }
+
+  let ticketCode: string | null = null;
+
+  if (guestToken) {
+    // Request ticket (may already exist — that's fine)
+    try {
+      ticketCode = await requestTicket(guestToken, seeded.fixedEventId);
+      console.log("[check-in setup] /participants/request → code:", ticketCode ?? "(not in response)");
+    } catch (err: any) {
+      console.warn("[check-in setup] /participants/request failed:", err?.message);
+    }
+
+    // Fetch ticketCode from guest's own event data (most reliable source)
+    if (!ticketCode) {
+      try {
+        ticketCode = await getMyTicketCode(guestToken, seeded.fixedEventId);
+        console.log("[check-in setup] ticketCode from get-event-data:", ticketCode ?? "(none)");
+      } catch (err: any) {
+        console.warn("[check-in setup] get-event-data failed:", err?.message);
+      }
+    }
+  }
+
+  // ── 3. Persist ticketCode — fallback to organizer guest list ──────────────
+  if (!ticketCode) {
+    try {
+      const organizerToken = getOrganizerToken();
+      const guests = await getGuestList(organizerToken, seeded.fixedEventId);
+      console.log("[check-in setup] Guests (full):", JSON.stringify(guests.slice(0, 3)));
+      ticketCode = guests.find((g: any) => g.ticketCode)?.ticketCode ?? null;
+    } catch (err: any) {
+      console.warn("[check-in setup] Could not fetch guest list:", err?.message);
+    }
+  }
+
+  if (ticketCode) {
+    seeded = { ...seeded, fixedTicketCode: ticketCode };
+    fs.writeFileSync(SEEDED_EVENTS_PATH, JSON.stringify(seeded, null, 2));
+    console.log("[check-in setup] Ticket code ready:", ticketCode);
+  } else {
+    console.warn("[check-in setup] No ticketCode found — valid-ticket test will skip");
+  }
+});
 
 test.describe("Check-in — page access", () => {
   test("check-in page loads for organizer's seeded event", async ({ page }) => {
@@ -63,6 +149,18 @@ test.describe("Check-in — manual ticket code entry", () => {
       .first().isVisible({ timeout: 4_000 }).catch(() => false);
     const stayedOnPage = url.includes("check-in");
     expect(hasError || stayedOnPage).toBe(true);
+  });
+
+  test("valid ticket code checks in the guest successfully", async ({ page }) => {
+    const s = getSeededEvents();
+    if (!s.fixedEventId || !s.fixedTicketCode) test.skip();
+
+    const c = new CheckInPage(page);
+    await c.navigate(s.fixedEventId);
+    await c.switchToManualMode();
+    await c.enterTicketCode(s.fixedTicketCode);
+    await c.submitCode();
+    await c.expectCheckInSuccess();
   });
 
   test("malformed ticket code (special chars) is handled gracefully", async ({ page }) => {

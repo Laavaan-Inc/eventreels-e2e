@@ -9,10 +9,12 @@ interface Props {
   tests: TestCase[];
   area: string | null;
   search: string;
+  env: "local" | "dev";
   onRunArea?: () => void;
+  onRefresh?: () => void;
 }
 
-export default function TestTable({ tests, area, search, onRunArea }: Props) {
+export default function TestTable({ tests, area, search, env, onRunArea, onRefresh }: Props) {
   const [modal, setModal] = useState<{ spec: string; name: string; label: string } | null>(null);
 
   const filtered = tests.filter((t) => {
@@ -108,7 +110,9 @@ export default function TestTable({ tests, area, search, onRunArea }: Props) {
           spec={modal.spec}
           test={modal.name}
           label={modal.label}
+          env={env}
           onClose={() => setModal(null)}
+          onDone={onRefresh}
         />
       )}
     </div>

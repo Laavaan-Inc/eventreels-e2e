@@ -17,8 +17,8 @@ export async function GET() {
   const buf  = fs.readFileSync(SHOT_PATH);
   const b64  = buf.toString("base64");
 
-  return NextResponse.json({
-    image:    `data:image/png;base64,${b64}`,
-    updatedAt: stat.mtimeMs,
-  });
+  return NextResponse.json(
+    { image: `data:image/png;base64,${b64}`, updatedAt: stat.mtimeMs },
+    { headers: { "Cache-Control": "no-store" } }
+  );
 }

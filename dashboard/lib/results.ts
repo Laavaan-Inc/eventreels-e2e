@@ -2,7 +2,8 @@ import fs from "fs";
 import path from "path";
 import { TestCase, TestResult, DashboardData, AreaStats } from "./types";
 
-const RESULTS_FILE = path.resolve(process.cwd(), "../playwright-report/results.json");
+const RESULTS_FILE       = path.resolve(process.cwd(), "../playwright-report/results.json");
+const DASH_RESULTS_FILE  = path.resolve(process.cwd(), "../playwright-report/dashboard-results.json");
 
 const SPEC_TO_AREA: Record<string, string> = {
   "auth.spec.ts":           "Auth",
@@ -19,42 +20,64 @@ function specToArea(spec: string): string {
   return SPEC_TO_AREA[base] ?? base.replace(/\.spec\.ts$/, "");
 }
 
-export function readResults(): TestResult[] {
-  if (!fs.existsSync(RESULTS_FILE)) return [];
-  try {
-    const raw = JSON.parse(fs.readFileSync(RESULTS_FILE, "utf-8"));
-    const results: TestResult[] = [];
-    const suites: any[] = raw.suites ?? [];
+const VALID_STATUSES = new Set(["passed", "failed", "skipped", "pending"]);
+function normalizeStatus(s: string | undefined): "passed" | "failed" | "skipped" | "pending" {
+  if (!s) return "pending";
+  if (VALID_STATUSES.has(s)) return s as any;
+  // Playwright also emits "timedOut" and "interrupted" — treat as failed
+  return "failed";
+}
 
-    function walk(suites: any[], specFile: string) {
-      for (const suite of suites) {
-        const file = suite.file ?? specFile;
-        if (suite.specs) {
-          for (const spec of suite.specs) {
-            for (const test of spec.tests ?? []) {
-              const result = test.results?.[0];
-              results.push({
-                runId:    raw.stats?.startTime ?? new Date().toISOString(),
-                date:     raw.stats?.startTime ?? new Date().toISOString(),
-                spec:     path.basename(file),
-                area:     specToArea(file),
-                name:     `${suite.title} > ${spec.title}`.trim().replace(/^> /, ""),
-                status:   result?.status ?? "pending",
-                duration: Math.round((result?.duration ?? 0) / 1000),
-                error:    result?.error?.message,
-              });
-            }
+export function walkPlaywrightJson(raw: any): TestResult[] {
+  const results: TestResult[] = [];
+
+  function walk(suites: any[], specFile: string) {
+    for (const suite of suites) {
+      const file = suite.file ?? specFile;
+      if (suite.specs) {
+        for (const spec of suite.specs) {
+          for (const test of spec.tests ?? []) {
+            const result = test.results?.[0];
+            results.push({
+              runId:    raw.stats?.startTime ?? new Date().toISOString(),
+              date:     raw.stats?.startTime ?? new Date().toISOString(),
+              spec:     path.basename(file),
+              area:     specToArea(file),
+              name:     `${suite.title} > ${spec.title}`.trim().replace(/^> /, ""),
+              status:   normalizeStatus(result?.status),
+              duration: Math.round((result?.duration ?? 0) / 1000),
+              error:    result?.error?.message,
+            });
           }
         }
-        if (suite.suites) walk(suite.suites, file);
       }
+      if (suite.suites) walk(suite.suites, file);
     }
-
-    walk(suites, "");
-    return results;
-  } catch {
-    return [];
   }
+
+  walk(raw.suites ?? [], "");
+  return results;
+}
+
+export function readResults(): TestResult[] {
+  const results: TestResult[] = [];
+
+  // Full-suite results (written by `npx playwright test` on the CLI)
+  if (fs.existsSync(RESULTS_FILE)) {
+    try {
+      results.push(...walkPlaywrightJson(JSON.parse(fs.readFileSync(RESULTS_FILE, "utf-8"))));
+    } catch {}
+  }
+
+  // Per-test results written by the dashboard after each individual run
+  if (fs.existsSync(DASH_RESULTS_FILE)) {
+    try {
+      const dash = JSON.parse(fs.readFileSync(DASH_RESULTS_FILE, "utf-8"));
+      if (Array.isArray(dash)) results.push(...dash);
+    } catch {}
+  }
+
+  return results;
 }
 
 export function buildDashboard(allTests: string[][], results: TestResult[]): DashboardData {
