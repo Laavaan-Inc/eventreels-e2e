@@ -80,6 +80,15 @@ export function readResults(): TestResult[] {
   return results;
 }
 
+const RECENTLY_ADDED_FILE = path.resolve(process.cwd(), "../recently-added.json");
+
+function readRecentlyAdded(): Set<string> {
+  try {
+    const list = JSON.parse(fs.readFileSync(RECENTLY_ADDED_FILE, "utf-8")) as { specFile: string; testTitle: string }[];
+    return new Set(list.map(e => `${path.basename(e.specFile)}::${e.testTitle}`));
+  } catch { return new Set(); }
+}
+
 export function buildDashboard(allTests: string[][], results: TestResult[]): DashboardData {
   const latestByTitle = new Map<string, TestResult>();
   for (const r of results) {
@@ -88,10 +97,13 @@ export function buildDashboard(allTests: string[][], results: TestResult[]): Das
     if (!existing || r.date > existing.date) latestByTitle.set(key, r);
   }
 
+  const recentlyAdded = readRecentlyAdded();
+
   const tests: TestCase[] = allTests.map(([spec, name]) => {
     const area = specToArea(spec);
     const key  = `${path.basename(spec)}::${name}`;
-    return { spec: path.basename(spec), area, name, fullTitle: name, lastResult: latestByTitle.get(key) };
+    const isNew = recentlyAdded.has(key);
+    return { spec: path.basename(spec), area, name, fullTitle: name, lastResult: latestByTitle.get(key), isNew };
   });
 
   const areaMap = new Map<string, AreaStats>();

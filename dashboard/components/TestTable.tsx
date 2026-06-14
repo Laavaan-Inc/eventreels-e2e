@@ -17,11 +17,13 @@ interface Props {
 export default function TestTable({ tests, area, search, env, onRunArea, onRefresh }: Props) {
   const [modal, setModal] = useState<{ spec: string; name: string; label: string } | null>(null);
 
-  const filtered = tests.filter((t) => {
-    const matchArea   = !area || t.area === area;
-    const matchSearch = !search || t.name.toLowerCase().includes(search.toLowerCase());
-    return matchArea && matchSearch;
-  });
+  const filtered = tests
+    .filter((t) => {
+      const matchArea   = !area || t.area === area;
+      const matchSearch = !search || t.name.toLowerCase().includes(search.toLowerCase());
+      return matchArea && matchSearch;
+    })
+    .sort((a, b) => (b.isNew ? 1 : 0) - (a.isNew ? 1 : 0));
 
   const title = area ?? "All Tests";
 
@@ -67,7 +69,14 @@ export default function TestTable({ tests, area, search, env, onRunArea, onRefre
                 className="border-b border-gray-800/50 hover:bg-gray-800/30 transition-colors"
               >
                 <td className="px-4 py-3 text-gray-200 max-w-xl">
-                  <p className="leading-snug">{t.name}</p>
+                  <p className="leading-snug flex items-center gap-2">
+                    {t.name}
+                    {t.isNew && (
+                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 shrink-0">
+                        NEW
+                      </span>
+                    )}
+                  </p>
                   {!area && (
                     <p className="text-xs text-gray-500 mt-0.5">{t.area}</p>
                   )}

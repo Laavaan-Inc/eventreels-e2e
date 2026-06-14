@@ -135,7 +135,7 @@ Analyse the existing suite for overlap with the described scenario, then respond
     const client = new Anthropic({ apiKey });
     const message = await client.messages.create({
       model: "claude-sonnet-4-6",
-      max_tokens: 3000,
+      max_tokens: 8000,
       system: SYSTEM_PROMPT,
       messages: [{ role: "user", content: userMessage }],
     });
@@ -146,7 +146,15 @@ Analyse the existing suite for overlap with the described scenario, then respond
       .replace(/\s*```\s*$/, "")
       .trim();
 
-    const parsed = JSON.parse(cleaned);
+    let parsed: any;
+    try {
+      parsed = JSON.parse(cleaned);
+    } catch (parseErr: any) {
+      return NextResponse.json(
+        { error: `AI response was truncated (${parseErr.message}). Try a shorter scenario or fewer steps.` },
+        { status: 500 },
+      );
+    }
     return NextResponse.json(parsed);
   } catch (err: any) {
     return NextResponse.json({ error: err.message ?? "AI generation failed" }, { status: 500 });

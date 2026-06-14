@@ -64,17 +64,21 @@ test.describe("Session persistence", () => {
     expect(page.url()).not.toContain("/auth");
   });
 
-  test("unauthenticated user on /create is redirected to /auth", async ({ browser }) => {
+  test("unauthenticated user on /create sees the create form (no redirect)", async ({ browser }) => {
+    // /create is now accessible without auth — users see the form and are prompted
+    // to sign in inline when they attempt to save.
     const ctx = await browser.newContext(); // no storageState
     const pg = await ctx.newPage();
     await pg.goto("/create");
-    // Auth guard fires after isLoading resolves — wait for the redirect
-    await pg.waitForURL((url) => url.pathname.includes("/auth"), {
-      timeout: 10_000,
-      waitUntil: "commit",
-    });
-    expect(pg.url()).toContain("/auth");
-    expect(pg.url()).toContain("callbackUrl");
+    await pg.waitForLoadState("load");
+    await pg.waitForLoadState("networkidle").catch(() => {});
+    // Should stay on /create — no redirect to /auth
+    expect(pg.url()).not.toContain("/auth");
+    expect(pg.url()).toContain("/create");
+    // The title input is visible to logged-out users
+    await expect(
+      pg.locator('input[placeholder="Untitled Event"], .event-title-input').first()
+    ).toBeVisible({ timeout: 8_000 });
     await ctx.close();
   });
 });

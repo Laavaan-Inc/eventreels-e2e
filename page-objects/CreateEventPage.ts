@@ -25,7 +25,8 @@ export class CreateEventPage {
       window.Date = SD;
     });
     await this.page.goto("/create");
-    await this.page.waitForLoadState("networkidle");
+    await this.page.waitForLoadState("load");
+    await this.page.waitForLoadState("networkidle").catch(() => {});
     await this.dismissCategoryPicker();
   }
 
@@ -44,7 +45,7 @@ export class CreateEventPage {
 
   async fillEventName(name: string) {
     // The event name input has placeholder="Event Name" (large heading input)
-    const inp = this.page.locator('input[placeholder="Event Name"]').first();
+    const inp = this.page.locator('input[placeholder="Untitled Event"]').first();
     await inp.waitFor({ state: "visible", timeout: 10_000 });
     await inp.click();
     await inp.fill(name);
@@ -280,7 +281,7 @@ export class CreateEventPage {
 
   async expectCreateForm() {
     await expect(
-      this.page.locator('input[placeholder="Event Name"]').first()
+      this.page.locator('input[placeholder="Untitled Event"]').first()
     ).toBeVisible({ timeout: 8_000 });
   }
 }
