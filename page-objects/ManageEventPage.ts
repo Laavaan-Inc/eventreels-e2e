@@ -7,27 +7,31 @@ export class ManageEventPage {
 
   async navigate(eventId: string) {
     await this.page.goto(`/manage?id=${eventId}`);
-    await this.page.waitForLoadState("networkidle");
+    await this.page.waitForLoadState("load");
+    await this.page.waitForLoadState("networkidle").catch(() => {});
   }
 
   // ── Tabs ──────────────────────────────────────────────────────────────────
 
   async selectTab(tab: "overview" | "guests" | "community" | "managers" | "analytics" | "payment" | "more") {
     if (tab === "guests") {
-      // The Guests section is a collapsible sidebar group — clicking the header just toggles it.
-      // Default state is open; ensure it stays open, then activate by clicking a sub-tab.
+      // Wait for the sidebar to render (either the sub-tab or the section toggle)
+      await this.page.waitForSelector(
+        'button:has-text("Guests & Invites"), button:has-text("Guests")',
+        { timeout: 15_000 },
+      );
       const subTabsVisible = await this.page
         .getByRole("button", { name: /guests & invites/i })
         .isVisible({ timeout: 2_000 })
         .catch(() => false);
       if (!subTabsVisible) {
-        // Section was closed — click the toggle to re-open it
-        await this.page.getByRole("button", { name: /^guests$/i }).first().click();
+        // Section was collapsed — find the Guests toggle by its text content and click it
+        await this.page.locator('button', { hasText: /^Guests$/ }).first().click();
         await this.page.waitForTimeout(400);
       }
       // Click the "Guests & Invites" sub-tab to activate the guests content area
       await this.page.getByRole("button", { name: /guests & invites/i }).first().click();
-      await this.page.waitForLoadState("networkidle");
+      await this.page.waitForLoadState("networkidle").catch(() => {});
       return;
     }
     const tabMap: Record<string, RegExp> = {
@@ -39,7 +43,7 @@ export class ManageEventPage {
       more:      /^more$/i,
     };
     await this.page.getByRole("button", { name: tabMap[tab] }).first().click();
-    await this.page.waitForLoadState("networkidle");
+    await this.page.waitForLoadState("networkidle").catch(() => {});
   }
 
   async selectGuestsSubTab(sub: GuestsSubTab) {
