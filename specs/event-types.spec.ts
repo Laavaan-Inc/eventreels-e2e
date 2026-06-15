@@ -52,7 +52,8 @@ test.describe("Chip-in event", () => {
     const c = new CreateEventPage(page);
     await c.navigate();
     await c.setTicketMode("chip");
-    await expect(page.getByText(/suggested per person|chip|payment method/i).first()).toBeVisible({ timeout: 5_000 });
+    // Dialog stays open; filter to visible to skip the hidden mobile dialog copy
+    await expect(page.getByText(/suggested per person|chip|payment method/i).filter({ visible: true }).first()).toBeVisible({ timeout: 5_000 });
   });
 
   test("API payload has eventType=chipin", async ({ page }) => {
@@ -73,7 +74,8 @@ test.describe("Paid event", () => {
     const c = new CreateEventPage(page);
     await c.navigate();
     await c.setTicketMode("paid");
-    await expect(page.getByText(/price per ticket|stripe|ticket tier/i).first()).toBeVisible({ timeout: 5_000 });
+    // Dialog stays open; filter to visible to skip the hidden mobile dialog copy
+    await expect(page.getByText(/price per ticket|stripe|ticket tier/i).filter({ visible: true }).first()).toBeVisible({ timeout: 5_000 });
   });
 
   test("API payload has eventType=premium", async ({ page }) => {
@@ -161,7 +163,8 @@ test.describe("Event settings", () => {
     await c.navigate();
     await c.openSettings();
     await c.setCapacityMode("limited");
-    await expect(page.getByText(/👤 limited|limited/i).first()).toBeVisible({ timeout: 5_000 });
+    // Dialog stays open; filter to visible to skip the hidden mobile dialog copy
+    await expect(page.getByText(/👤 limited|limited/i).filter({ visible: true }).first()).toBeVisible({ timeout: 5_000 });
     await c.saveSettings();
   });
 
@@ -199,7 +202,8 @@ test.describe("Location", () => {
     const c = new CreateEventPage(page);
     await c.navigate();
     await c.setLocationMode("virtual");
-    await expect(page.getByPlaceholder(/zoom|meet|meeting link/i).first()).toBeVisible({ timeout: 5_000 });
+    // Dialog stays open; filter to visible to skip the hidden mobile dialog copy
+    await expect(page.getByPlaceholder(/zoom|meet|meeting link/i).filter({ visible: true }).first()).toBeVisible({ timeout: 5_000 });
   });
 
   test("physical — renders address picker", async ({ page }) => {
@@ -207,8 +211,9 @@ test.describe("Location", () => {
     await c.navigate();
     await c.setLocationMode("physical");
     // LocationSection physical placeholder is "The Brooklyn Mirage"; class is location-input
+    // Filter to visible to skip the hidden mobile dialog copy
     await expect(
-      page.locator('input.location-input, input[placeholder*="Brooklyn" i], input[placeholder*="address" i]').first()
+      page.locator('input.location-input, input[placeholder*="Brooklyn" i], input[placeholder*="address" i]').filter({ visible: true }).first()
     ).toBeVisible({ timeout: 5_000 });
   });
 

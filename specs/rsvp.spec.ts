@@ -58,9 +58,9 @@ test.describe("Free event RSVP journey", () => {
     await ep.navigate(s.organizerUsername, s.fixedShortCode || s.fixedEventId);
     await ep.expectEventLoaded("E2E Free Event");
 
-    // Guest count badge or stat is visible
+    // Guest count badge or stat is visible — filter to :visible to skip hidden elements
     await expect(
-      page.getByText(/\d+\s*(going|attending|guests?)/i).first()
+      page.locator(':visible').filter({ hasText: /\d+\s*(going|attending|guests?)/i }).first()
     ).toBeVisible({ timeout: 8_000 });
   });
 });
