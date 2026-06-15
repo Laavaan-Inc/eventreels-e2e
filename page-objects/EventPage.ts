@@ -45,7 +45,19 @@ export class EventPage {
   }
 
   async clickRegister() {
-    await this.page.getByRole("button", { name: /register|rsvp|join|attend/i }).first().click();
+    // The invite card shows "I'm going / Maybe / Can't go" buttons directly.
+    // Clicking "I'm going" submits the RSVP. Fall back to a broader match for
+    // other event types that have a dedicated Register CTA.
+    const goingBtn = this.page.getByRole("button", { name: /i.?m going/i }).first();
+    const hasGoing = await goingBtn.isVisible({ timeout: 6_000 }).catch(() => false);
+    if (hasGoing) {
+      await goingBtn.evaluate((el: HTMLElement) => el.click());
+      await this.page.waitForTimeout(500);
+      return;
+    }
+    const btn = this.page.getByRole("button", { name: /register|rsvp|join|attend/i }).first();
+    await btn.waitFor({ state: "visible", timeout: 10_000 });
+    await btn.evaluate((el: HTMLElement) => el.click());
     await this.page.waitForTimeout(500);
   }
 }

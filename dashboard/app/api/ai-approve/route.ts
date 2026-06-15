@@ -3,6 +3,14 @@ import fs from "fs";
 import path from "path";
 
 const E2E_ROOT = path.resolve(process.cwd(), "..");
+const RECENTLY_ADDED_FILE = path.join(E2E_ROOT, "recently-added.json");
+
+function recordRecentlyAdded(specFile: string, testTitle: string) {
+  let list: { specFile: string; testTitle: string; addedAt: string }[] = [];
+  try { list = JSON.parse(fs.readFileSync(RECENTLY_ADDED_FILE, "utf-8")); } catch {}
+  list.unshift({ specFile, testTitle, addedAt: new Date().toISOString() });
+  fs.writeFileSync(RECENTLY_ADDED_FILE, JSON.stringify(list.slice(0, 50), null, 2));
+}
 
 export const dynamic = "force-dynamic";
 
@@ -50,6 +58,7 @@ export async function POST(req: NextRequest) {
     const content = NEW_FILE_TEMPLATE(area, specFile, describeBlock, code, imports);
     fs.mkdirSync(path.dirname(absPath), { recursive: true });
     fs.writeFileSync(absPath, content, "utf-8");
+    recordRecentlyAdded(specFile, body.testTitle);
     return NextResponse.json({ ok: true, action: "created", specFile });
   }
 
@@ -98,6 +107,7 @@ export async function POST(req: NextRequest) {
           "\n\n  " + indented + "\n" +
           existing.slice(insertPos);
         fs.writeFileSync(absPath, existing, "utf-8");
+        recordRecentlyAdded(specFile, body.testTitle);
         return NextResponse.json({ ok: true, action: "inserted", specFile });
       }
     }
@@ -105,11 +115,13 @@ export async function POST(req: NextRequest) {
     // describe block doesn't exist — append a new one at end of file
     const newBlock = `\ntest.describe("${describeBlock}", () => {\n${code.trim().split("\n").map(l => "  " + l).join("\n")}\n});\n`;
     fs.writeFileSync(absPath, existing.trimEnd() + "\n" + newBlock, "utf-8");
+    recordRecentlyAdded(specFile, body.testTitle);
     return NextResponse.json({ ok: true, action: "appended-describe", specFile });
   }
 
   // No describe block — append bare test at end
   fs.writeFileSync(absPath, existing.trimEnd() + "\n\n" + code.trim() + "\n", "utf-8");
+  recordRecentlyAdded(specFile, body.testTitle);
   return NextResponse.json({ ok: true, action: "appended", specFile });
 }
 

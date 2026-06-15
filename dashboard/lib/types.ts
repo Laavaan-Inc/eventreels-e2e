@@ -17,6 +17,7 @@ export interface TestCase {
   name: string;
   fullTitle: string;
   lastResult?: TestResult;
+  isNew?: boolean;
 }
 
 export interface AreaStats {

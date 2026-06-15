@@ -168,6 +168,11 @@ export async function getMyTicketCode(token: string, eventId: string): Promise<s
   return data?.userTicket?.ticketCode ?? null;
 }
 
+/** Fetch full event data by shortCode or MongoDB _id. Returns the raw event object. */
+export async function getEventData(token: string, shortCodeOrId: string): Promise<any> {
+  return apiFetch("POST", "/events/get-event-data", { eventId: shortCodeOrId }, token);
+}
+
 // ── Stored state ──────────────────────────────────────────────────────────────
 
 export function getStoredToken(): string {

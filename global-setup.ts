@@ -201,15 +201,15 @@ export default async function globalSetup(_config: FullConfig) {
   const authPhonesFile = ".auth/auth-phones-done.json";
   if (!fs.existsSync(authPhonesFile)) {
     console.log("[setup] Pre-completing auth phone profiles...");
+    // Only pre-complete the auth-spec phones — they're used in UI login tests where
+    // a missing profile would redirect to the profile form instead of home.
+    // Inline spec phones (+15555555551-554) are handled on-demand by loginUser() in each test.
     const allTestPhones = [
       AUTH_PHONE_VALID, AUTH_PHONE_INVALID, AUTH_PHONE_RESEND, AUTH_PHONE_RETRY,
-      // E2E spec phones used inline (must have profiles before tests run)
-      "+15555500001", "+15555500002", "+15555500003",
-      "+15555555551", "+15555555552", "+15555555553", "+15555555554",
     ];
     for (const phone of allTestPhones) {
       try {
-        await new Promise(r => setTimeout(r, 3_000));
+        await new Promise(r => setTimeout(r, 8_000));
         await loginUser(phone);
         console.log(`[setup] ${phone} — profile ready`);
       } catch (err: any) {

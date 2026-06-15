@@ -52,7 +52,9 @@ test.describe("dateUndecided — event page buttons", () => {
     await ep.navigate(s.organizerUsername, s.tbdEventShortCode || s.tbdEventId);
     await ep.clickConfirmDate();
 
-    const calendar = page.locator('[role="dialog"] [role="grid"], [aria-label*="calendar" i], input[type="date"]').first();
+    // DateTimePickerDialog uses a custom calendar grid under role="dialog" aria-label="When's your event?"
+    // After clickConfirmDate() the dialog is already open — just verify the dialog is visible.
+    const calendar = page.locator('[role="dialog"][aria-label*="event" i], [role="dialog"]:has-text("Start date"), input[type="date"]').first();
     await expect(calendar).toBeVisible({ timeout: 6_000 });
   });
 
