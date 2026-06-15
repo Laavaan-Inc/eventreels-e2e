@@ -44,45 +44,56 @@ export class CreateEventPage {
   // ── Basic fields ──────────────────────────────────────────────────────────
 
   async fillEventName(name: string) {
-    // The event name input has placeholder="Event Name" (large heading input)
-    const inp = this.page.locator('input[placeholder="Untitled Event"]').first();
+    const inp = this.page.locator('.event-title-input, textarea[placeholder*="Untitled" i], input[placeholder*="Untitled" i]').first();
     await inp.waitFor({ state: "visible", timeout: 10_000 });
     await inp.click();
     await inp.fill(name);
   }
 
   async fillDescription(text: string) {
-    // Click the "Add Description" row to open the richtext modal
-    const row = this.page.getByText(/Add Description/i).first();
-    if (!(await row.isVisible({ timeout: 3_000 }).catch(() => false))) return;
-    await row.click();
-    // Fill the plain textarea in the description modal
-    const ta = this.page.locator('textarea[placeholder*="Doors"]').first();
+    const descRow = this.page.locator('button').filter({ hasText: /Description/ }).first();
+    if (!(await descRow.isVisible({ timeout: 3_000 }).catch(() => false))) return;
+    await descRow.click();
+    const ta = this.page
+      .locator('textarea[placeholder*="Tell guests" i], textarea[placeholder*="say something" i]')
+      .locator("visible=true").first();
     await ta.waitFor({ state: "visible", timeout: 6_000 });
     await ta.fill(text);
-    // Click the "done" / "save" button to close the description modal
-    const save = this.page.getByRole("button", { name: /^done$|^save$/i }).first();
+    const save = this.page.locator("button:visible").filter({ hasText: /^Save$/ }).first();
     await save.waitFor({ state: "visible", timeout: 3_000 });
     await save.click();
-    await this.page.waitForTimeout(500);
+    await this.page.waitForTimeout(400);
   }
 
   async selectVirtualLocation() {
-    await this.setLocationMode("virtual");
-    // Close the modal so the location is committed as "Online"
-    const done = this.page.getByRole("button", { name: /^done$/i }).first();
-    if (await done.isVisible({ timeout: 2_000 }).catch(() => false)) {
-      await done.click(); await this.page.waitForTimeout(300);
+    const locationRow = this.page.locator('button').filter({ hasText: /^Location/ }).first();
+    if (!(await locationRow.isVisible({ timeout: 3_000 }).catch(() => false))) return;
+    await locationRow.click();
+    const virtualBtn = this.page.locator("button:visible").filter({ hasText: /^Virtual$/ });
+    await virtualBtn.first().waitFor({ state: "visible", timeout: 4_000 });
+    await virtualBtn.first().click();
+    const doneBtn = this.page.locator("button:visible").filter({ hasText: /^done$/i });
+    if (await doneBtn.first().isVisible({ timeout: 2_000 }).catch(() => false)) {
+      await doneBtn.first().click();
     }
+    await this.page.waitForTimeout(300);
   }
 
   async uploadCoverImage() {
     const imgPath = path.resolve(__dirname, "../fixtures/assets/test-photo.jpg");
-    // The "＋ Add Cover" button (full-width ＋ character) triggers the hidden file input
+    // Step 1: click the cover button — now opens an import picker modal
     const btn = this.page.getByRole("button", { name: /add cover/i }).first();
+    await btn.waitFor({ state: "visible", timeout: 6_000 });
+    await btn.click();
+
+    // Step 2: pick "Choose photo" (not "Import poster") inside the picker modal
+    const choosePhoto = this.page.locator("button:visible").filter({ hasText: /choose photo/i }).first();
+    await choosePhoto.waitFor({ state: "visible", timeout: 4_000 });
+
+    // Step 3: clicking "Choose photo" triggers the hidden file input
     const [chooser] = await Promise.all([
       this.page.waitForEvent("filechooser", { timeout: 5_000 }),
-      btn.click(),
+      choosePhoto.click(),
     ]);
     await chooser.setFiles(imgPath);
     await this.page.waitForTimeout(1_500);
@@ -91,33 +102,38 @@ export class CreateEventPage {
   // ── Ticket mode ───────────────────────────────────────────────────────────
 
   async setTicketMode(mode: TicketMode) {
-    // Click the "Tickets" label span — click bubbles up to the parent OptRow div's onClick
-    await this.page.locator('span').filter({ hasText: /^Tickets$/ }).first().click();
+    // Open the Tickets dialog (button has label "Tickets <current-mode> ›")
+    await this.page.getByRole("button", { name: /^Tickets/i }).first().click();
     await this.page.waitForTimeout(400);
-    // Select the segment button inside the tickets modal
-    const labels: Record<TicketMode, RegExp> = {
-      free: /🎁 free|free/i,
-      chip: /💸 chip in|chip/i,
-      paid: /💳 paid|paid/i,
+    // CEModal renders two [role="dialog"] elements: mobile (lg:hidden, invisible at 1280px) and
+    // desktop (hidden lg:flex, visible). Always filter to the visible one.
+    const dialog = this.page.locator('[role="dialog"]').filter({ visible: true }).first();
+    await dialog.waitFor({ state: "visible", timeout: 4_000 });
+    const labels: Record<TicketMode, string> = {
+      free: "free",
+      chip: "chip in",
+      paid: "paid",
     };
-    const btn = this.page.getByRole("button", { name: labels[mode] }).first();
+    const btn = dialog.getByRole("button", { name: labels[mode], exact: true }).first();
     if (await btn.isVisible({ timeout: 3_000 }).catch(() => false)) {
       await btn.click(); await this.page.waitForTimeout(300);
     }
+    // Leave dialog open — content (chip amount, Stripe UI) needs to be visible for assertions.
+    // submitForm() closes any open dialog before clicking Create Event.
   }
 
   async setChipAmount(amount: string) {
-    await this.page.locator('input[placeholder*="amount" i]').first().fill(amount);
+    await this.page.locator('input[placeholder*="amount" i]').filter({ visible: true }).first().fill(amount);
   }
 
   async setTicketPrice(price: string) {
     // Paid events require Stripe. Click "connect" if not yet connected (fake connect).
-    const connectBtn = this.page.getByRole("button", { name: /connect stripe|^connect$/i }).first();
+    const connectBtn = this.page.getByRole("button", { name: /connect stripe|^connect$/i }).filter({ visible: true }).first();
     if (await connectBtn.isVisible({ timeout: 2_000 }).catch(() => false)) {
       await connectBtn.click();
       await this.page.waitForTimeout(1_500); // fake-connect delay
     }
-    await this.page.locator('input[placeholder*="amount" i]').first().fill(price);
+    await this.page.locator('input[placeholder*="amount" i]').filter({ visible: true }).first().fill(price);
   }
 
   // ── Date ─────────────────────────────────────────────────────────────────
@@ -136,21 +152,18 @@ export class CreateEventPage {
   // ── Location ──────────────────────────────────────────────────────────────
 
   async setLocationMode(mode: LocationMode) {
-    // Open the location modal (row label changes from "Add Event Location" to the location name once set)
-    const locationRow = this.page.getByText(/add event location|^location$|online/i).first();
+    const locationRow = this.page.locator('button').filter({ hasText: /^Location/ }).first();
     if (await locationRow.isVisible({ timeout: 3_000 }).catch(() => false)) {
       await locationRow.click(); await this.page.waitForTimeout(400);
     }
-    // Select virtual or in-person segment inside the modal
     const labels: Record<LocationMode, RegExp> = {
-      virtual:  /🔗 Virtual|Virtual/i,
-      physical: /📍 In-person|In-person/i,
+      virtual:  /^Virtual$/,
+      physical: /^In-person$/,
     };
-    const btn = this.page.getByRole("button", { name: labels[mode] }).first();
+    const btn = this.page.locator("button:visible").filter({ hasText: labels[mode] }).first();
     if (await btn.isVisible({ timeout: 3_000 }).catch(() => false)) {
       await btn.click(); await this.page.waitForTimeout(300);
     }
-    // Modal stays open — caller closes with saveSettings()/done if needed
   }
 
   // ── Settings (now inline rows, no single "settings sheet") ────────────────
@@ -162,32 +175,34 @@ export class CreateEventPage {
   }
 
   async setVisibility(mode: Visibility) {
-    // Open the Visibility modal
-    await this.page.getByText("Visibility").first().click();
+    await this.page.getByRole("button", { name: /^Visibility/i }).first().click();
     await this.page.waitForTimeout(400);
-    // Click the option div in the visibility modal (these are divs, not buttons)
-    const labels: Record<Visibility, RegExp> = {
-      open:   /^Public$/,
-      link:   /^Link only$/,
-      invite: /^Invite only$/,
+    const dialog = this.page.locator('[role="dialog"]').filter({ visible: true }).first();
+    await dialog.waitFor({ state: "visible", timeout: 4_000 });
+    const labels: Record<Visibility, string> = {
+      open:   "Public",
+      link:   "Link only",
+      invite: "Invite only",
     };
-    await this.page.getByText(labels[mode]).first().click();
+    // The buttons include description text in their accessible name, so don't use exact matching.
+    await dialog.getByRole("button", { name: labels[mode] }).first().click();
     await this.page.waitForTimeout(300);
   }
 
   async setCapacityMode(mode: CapacityMode) {
-    // Open the Capacity modal (click the label span — bubbles to parent OptRow div)
-    await this.page.locator('span').filter({ hasText: /^Capacity$/ }).first().click();
+    await this.page.getByRole("button", { name: /^Capacity/i }).first().click();
     await this.page.waitForTimeout(400);
-    const labels: Record<CapacityMode, RegExp> = {
-      limited:   /👤 Limited|Limited/i,
-      unlimited: /∞ Unlimited|Unlimited/i,
+    const dialog = this.page.locator('[role="dialog"]').filter({ visible: true }).first();
+    await dialog.waitFor({ state: "visible", timeout: 4_000 });
+    // Seg labels: "∞ Unlimited" and "Limited" (no emoji, "Limited" ≠ "Unlimited")
+    const labels: Record<CapacityMode, string> = {
+      limited:   "Limited",
+      unlimited: "∞ Unlimited",
     };
-    const btn = this.page.getByRole("button", { name: labels[mode] }).first();
+    const btn = dialog.getByRole("button", { name: labels[mode], exact: true }).first();
     if (await btn.isVisible({ timeout: 3_000 }).catch(() => false)) {
       await btn.click(); await this.page.waitForTimeout(300);
     }
-    // Modal stays open — caller closes with saveSettings() if needed
   }
 
   async setEventPassword(_password: string) {
@@ -204,8 +219,8 @@ export class CreateEventPage {
   }
 
   async saveSettings() {
-    // Close whatever modal is open with the "done" button
-    const done = this.page.getByRole("button", { name: /^done$/i }).first();
+    // Close whatever modal is open with the "done" button — filter to visible to skip hidden mobile dialog copy
+    const done = this.page.getByRole("button", { name: /^done$/i }).filter({ visible: true }).first();
     if (await done.isVisible({ timeout: 2_000 }).catch(() => false)) {
       await done.click(); await this.page.waitForTimeout(400);
     }
@@ -267,12 +282,20 @@ export class CreateEventPage {
   // ── Submit ────────────────────────────────────────────────────────────────
 
   async submitForm() {
-    // Close any open modal first — the modal overlay blocks the Create Event button
-    const doneOrClose = this.page.getByRole("button", { name: /^done$|^save$|^✕$/i }).first();
-    if (await doneOrClose.isVisible({ timeout: 500 }).catch(() => false)) {
-      await doneOrClose.click(); await this.page.waitForTimeout(300);
+    // Close any open Radix dialog (e.g. tickets/location left open for UI assertions) before clicking submit
+    const openDialog = this.page.locator('[role="dialog"]').filter({ visible: true }).first();
+    if (await openDialog.isVisible({ timeout: 500 }).catch(() => false)) {
+      const doneBtn = openDialog.locator('button').filter({ hasText: /^done$/i }).first();
+      if (await doneBtn.isVisible({ timeout: 500 }).catch(() => false)) {
+        await doneBtn.click();
+      } else {
+        await this.page.keyboard.press('Escape');
+      }
+      await this.page.waitForTimeout(400);
     }
-    await this.page.getByRole("button", { name: /create event|creating/i }).first().click();
+    const createBtn = this.page.getByRole("button", { name: /^(create event|save event)$/i }).first();
+    await createBtn.waitFor({ state: "visible", timeout: 5_000 });
+    await createBtn.click();
   }
 
   async waitForEventPage() {
@@ -281,7 +304,7 @@ export class CreateEventPage {
 
   async expectCreateForm() {
     await expect(
-      this.page.locator('input[placeholder="Untitled Event"]').first()
+      this.page.locator('.event-title-input, textarea[placeholder*="Untitled" i]').first()
     ).toBeVisible({ timeout: 8_000 });
   }
 }

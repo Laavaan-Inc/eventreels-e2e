@@ -12,18 +12,30 @@ export class CommunityPage {
   // ── New Post ──────────────────────────────────────────────────────────────
 
   async openNewPostDialog() {
-    const btn = this.page
-      .getByRole("button", { name: /new post|create.*post|post/i })
-      .first();
-    await btn.click();
-    // Wait for dialog to appear
-    await expect(
-      this.page.getByText(/new post/i).first()
-    ).toBeVisible({ timeout: 5_000 });
+    // Org community pages have a "New Post" dialog trigger button.
+    const newPostBtn = this.page.getByRole("button", { name: /new post|create.*post/i }).first();
+    const hasNewPostBtn = await newPostBtn.isVisible({ timeout: 3_000 }).catch(() => false);
+    if (hasNewPostBtn) {
+      await newPostBtn.click();
+      await expect(this.page.getByText(/new post/i).first()).toBeVisible({ timeout: 5_000 });
+      return;
+    }
+
+    // Event community pages use an inline composer that starts collapsed.
+    // Click "What's on your mind?" to expand it so the textarea becomes visible.
+    const collapseBtn = this.page.getByRole("button", { name: /what.?s on your mind/i }).first();
+    const hasCollapsed = await collapseBtn.isVisible({ timeout: 5_000 }).catch(() => false);
+    if (hasCollapsed) {
+      await collapseBtn.click();
+      await this.page.waitForTimeout(300);
+    }
   }
 
   async fillPostCaption(caption: string) {
-    const descField = this.page.locator("#post-desc, textarea[placeholder*='caption' i], textarea[placeholder*='say something' i]").first();
+    const descField = this.page.locator(
+      "#post-desc, textarea[placeholder*='caption' i], textarea[placeholder*='say something' i]"
+    ).first();
+    await descField.waitFor({ state: "visible", timeout: 8_000 });
     await descField.fill(caption);
   }
 
@@ -39,10 +51,11 @@ export class CommunityPage {
   }
 
   async submitPost() {
-    await this.page
-      .getByRole("button", { name: /post to community|post/i })
-      .last()
-      .click();
+    // Event community: button text is "Post" (inline composer).
+    // Org community: "Post to community" or similar.
+    const btn = this.page.getByRole("button", { name: /^Post$|post to community/i }).last();
+    await btn.waitFor({ state: "visible", timeout: 5_000 });
+    await btn.click();
   }
 
   async expectPostVisible(caption: string) {
@@ -53,7 +66,7 @@ export class CommunityPage {
 
   async expectPostCreatedToast() {
     await expect(
-      this.page.getByText(/posted|success/i).first()
+      this.page.getByText(/posted to the community|posted|success/i).first()
     ).toBeVisible({ timeout: 8_000 });
   }
 
