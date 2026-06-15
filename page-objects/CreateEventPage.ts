@@ -78,11 +78,19 @@ export class CreateEventPage {
 
   async uploadCoverImage() {
     const imgPath = path.resolve(__dirname, "../fixtures/assets/test-photo.jpg");
-    // The "＋ Add Cover" button (full-width ＋ character) triggers the hidden file input
+    // Step 1: click the cover button — now opens an import picker modal
     const btn = this.page.getByRole("button", { name: /add cover/i }).first();
+    await btn.waitFor({ state: "visible", timeout: 6_000 });
+    await btn.click();
+
+    // Step 2: pick "Choose photo" (not "Import poster") inside the picker modal
+    const choosePhoto = this.page.locator("button:visible").filter({ hasText: /choose photo/i }).first();
+    await choosePhoto.waitFor({ state: "visible", timeout: 4_000 });
+
+    // Step 3: clicking "Choose photo" triggers the hidden file input
     const [chooser] = await Promise.all([
       this.page.waitForEvent("filechooser", { timeout: 5_000 }),
-      btn.click(),
+      choosePhoto.click(),
     ]);
     await chooser.setFiles(imgPath);
     await this.page.waitForTimeout(1_500);
