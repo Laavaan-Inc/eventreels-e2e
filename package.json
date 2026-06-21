@@ -11,6 +11,7 @@
     "test:local": "dotenv -e .env.local -- playwright test",
     "test:auth": "playwright test --project=auth",
     "test:e2e": "playwright test --project=e2e",
+    "test:e2e:creator": "playwright test creator-journey --project=e2e",
     "test:headed": "playwright test --project=e2e --headed",
     "test:ui": "playwright test --project=e2e --ui",
     "test:report": "playwright show-report",
