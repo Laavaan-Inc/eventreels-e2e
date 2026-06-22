@@ -3,6 +3,8 @@ playwright-report/
 test-results/
 .auth/
 .env
+.env.*
+recently-added.json
 *.log
 dashboard/.next/
 dashboard/node_modules/
