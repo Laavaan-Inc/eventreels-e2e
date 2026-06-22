@@ -42,7 +42,32 @@ import * as fs from "fs";
 import * as path from "path";
 import { test, expect, Browser, BrowserContext, Page } from "@playwright/test";
 import { API_BASE, APP_BASE, AUTH_STATE_PATH, TIMEOUTS } from "../config/test-data";
-import { PassDef, LocationDef } from "../page-objects/ProgramPage";
+
+interface PassDef {
+  name: string;
+  price: number;
+  passCategory: "membership" | "punchcard" | "drop_in";
+  crossLocation: boolean;
+  paymentType: "free" | "direct" | "paid" | "both";
+  sessionCount?: number;
+  description?: string;
+}
+
+interface LocationDef {
+  locationName: string;
+  formattedAddress: string;
+  lat: number;
+  lon: number;
+  schedule: {
+    frequency: "weekly" | "biweekly" | "monthly";
+    dayOfWeek: number;
+    startTime: string;
+    endTime: string;
+    startDate: string;
+    sessionCount: number;
+  };
+  capacity: number;
+}
 
 // ─── Test data ────────────────────────────────────────────────────────────────
 
